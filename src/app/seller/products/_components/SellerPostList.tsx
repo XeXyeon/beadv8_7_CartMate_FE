@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, Text } from '@astryxdesign/core';
 import type { PageResponseSelectSalesPostResponse, SelectSalesPostResponse } from '@/api/generated/model';
 import { errorMessage, http, type RsData } from '@/api/http';
@@ -36,10 +36,27 @@ const UPDATE_STATUS: Record<string, string> = {
     RECOVERY_FAILED: '복구 실패',
 };
 
+const SELLER_POSTS_KEY = 'seller-posts';
+
+// 삭제할 수 있는 판매글 (BE SalesPostDeleteUseCase · startDelete 조건과 같다)
+// - 판매 상태: 등록 중 · 삭제 중이 아님 (삭제된 글은 목록에 없음)
+// - 수정 상태: 수정 중 · 복구 중이 아님 (신규 · 수정 완료 · 복구 완료 · 복구 실패)
+const NOT_DELETABLE_SALE = new Set(['PENDING', 'DELETING', 'DELETED']);
+const DELETABLE_UPDATE = new Set(['NEW', 'COMPLETED', 'RECOVERED', 'RECOVERY_FAILED']);
+
+function canDelete(post: SellerPost): boolean {
+    return !NOT_DELETABLE_SALE.has(post.status ?? '') && DELETABLE_UPDATE.has(post.updateStatus ?? 'NEW');
+}
+
 function fetchSellerPosts(sellerId: number, page: number): Promise<SellerPostPage | undefined> {
     return http<RsData<SellerPostPage>>(`/api/sales-posts/sellers/${sellerId}/posts?page=${page}&size=${PAGE_SIZE}`).then(
         (res) => res.data,
     );
+}
+
+// 판매글 삭제. 성공하면 판매글은 "삭제 중"이 되고, 상품 삭제가 끝나면 목록에서 빠진다
+function deleteSellerPost(sellerId: number, postId: number): Promise<void> {
+    return http<void>(`/api/sales-posts/sellers/${sellerId}/posts/${postId}`, { method: 'DELETE' });
 }
 
 // 판매자 본인의 판매글 목록 (삭제된 글만 빼고 모든 상태, 최신순)
@@ -48,12 +65,33 @@ export default function SellerPostList() {
     const sellerId = user?.id;
     const [page, setPage] = useState(0);
 
+    const queryClient = useQueryClient();
+    const [actionMessage, setActionMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
+
     const list = useQuery({
-        queryKey: ['seller-posts', sellerId, page],
+        queryKey: [SELLER_POSTS_KEY, sellerId, page],
         queryFn: () => fetchSellerPosts(sellerId as number, page),
         enabled: sellerId != null,
         staleTime: 0,
     });
+
+    const remove = useMutation({
+        mutationFn: (postId: number) => deleteSellerPost(sellerId as number, postId),
+        onSuccess: () => setActionMessage({ tone: 'info', text: '판매글을 삭제하고 있습니다. 상품 삭제가 끝나면 목록에서 빠집니다.' }),
+        onError: (error) => setActionMessage({ tone: 'error', text: errorMessage(error, '판매글을 삭제하지 못했습니다.') }),
+        // 성공이든 실패든 서버 상태(삭제 중 등)를 다시 받아 온다
+        onSettled: () => queryClient.invalidateQueries({ queryKey: [SELLER_POSTS_KEY, sellerId] }),
+    });
+
+    function onDelete(post: SellerPost) {
+        if (post.id == null || sellerId == null) return;
+        const ok = window.confirm(
+            `'${post.title ?? '이 판매글'}'을(를) 삭제할까요?\n삭제하면 판매글과 상품이 함께 지워지고 되돌릴 수 없습니다.`,
+        );
+        if (!ok) return;
+        setActionMessage(null);
+        remove.mutate(post.id);
+    }
 
     const posts = list.data?.content ?? [];
     const totalPages = list.data?.totalPages ?? 0;
@@ -61,6 +99,11 @@ export default function SellerPostList() {
 
     return (
         <div className="flex flex-col gap-space-lg">
+            {actionMessage && (
+                <Text className={actionMessage.tone === 'error' ? 'text-error' : 'text-on-surface-variant'} role={actionMessage.tone === 'error' ? 'alert' : 'status'}>
+                    {actionMessage.text}
+                </Text>
+            )}
             <Card padding={0} className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
@@ -96,7 +139,14 @@ export default function SellerPostList() {
                                 </td>
                             </tr>
                         ) : (
-                            posts.map((post) => <SellerPostRow key={post.id} post={post} />)
+                            posts.map((post) => (
+                                <SellerPostRow
+                                    key={post.id}
+                                    post={post}
+                                    deleting={remove.isPending && remove.variables === post.id}
+                                    onDelete={() => onDelete(post)}
+                                />
+                            ))
                         )}
                     </tbody>
                 </table>
@@ -131,7 +181,13 @@ export default function SellerPostList() {
     );
 }
 
-function SellerPostRow({ post }: { post: SellerPost }) {
+type SellerPostRowProps = {
+    post: SellerPost;
+    deleting: boolean;
+    onDelete: () => void;
+};
+
+function SellerPostRow({ post, deleting, onDelete }: SellerPostRowProps) {
     const card = toSalesPostCard(post);
     const sale = SALE_STATUS[post.status ?? ''] ?? { label: post.status ?? '-', variant: 'neutral' as const };
     const update = UPDATE_STATUS[post.updateStatus ?? ''];
@@ -165,12 +221,21 @@ function SellerPostRow({ post }: { post: SellerPost }) {
                 </div>
             </td>
             <td className="py-space-sm px-space-md text-center text-outline whitespace-nowrap">{formatDateTime(post.createdAt)}</td>
-            <td className="py-space-sm px-space-md text-center">
-                {viewable ? (
-                    <Button label="보기" href={ROUTES.product(post.id ?? 0)} as={Link} variant="secondary" size="sm" />
-                ) : (
-                    <span className="text-outline">-</span>
-                )}
+            <td className="py-space-sm px-space-md">
+                <div className="flex items-center justify-center gap-space-xs whitespace-nowrap">
+                    {viewable && <Button label="보기" href={ROUTES.product(post.id ?? 0)} as={Link} variant="secondary" size="sm" />}
+                    {canDelete(post) && (
+                        <Button
+                            label={deleting ? '삭제 중…' : '삭제'}
+                            variant="ghost"
+                            size="sm"
+                            className="text-error"
+                            isDisabled={deleting}
+                            onClick={onDelete}
+                        />
+                    )}
+                    {!viewable && !canDelete(post) && <span className="text-outline">-</span>}
+                </div>
             </td>
         </tr>
     );
