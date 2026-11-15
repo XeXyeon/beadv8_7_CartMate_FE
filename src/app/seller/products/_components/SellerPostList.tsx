@@ -88,7 +88,8 @@ export default function SellerPostList() {
     const [page, setPage] = useState(0);
 
     const queryClient = useQueryClient();
-    const [actionMessage, setActionMessage] = useState<{ tone: 'error' | 'info'; text: string } | null>(null);
+    // 성공 안내는 목록 위 글씨로 남기고, 실패는 놓치지 않게 alert 팝업으로 BE 메시지를 그대로 보여준다
+    const [actionMessage, setActionMessage] = useState<string | null>(null);
 
     const list = useQuery({
         queryKey: [SELLER_POSTS_KEY, sellerId, page],
@@ -99,8 +100,8 @@ export default function SellerPostList() {
 
     const remove = useMutation({
         mutationFn: (postId: number) => deleteSellerPost(sellerId as number, postId),
-        onSuccess: () => setActionMessage({ tone: 'info', text: '판매글을 삭제하고 있습니다. 상품 삭제가 끝나면 목록에서 빠집니다.' }),
-        onError: (error) => setActionMessage({ tone: 'error', text: errorMessage(error, '판매글을 삭제하지 못했습니다.') }),
+        onSuccess: () => setActionMessage('판매글을 삭제하고 있습니다. 상품 삭제가 끝나면 목록에서 빠집니다.'),
+        onError: (error) => window.alert(errorMessage(error, '판매글을 삭제하지 못했습니다.')),
         // 성공이든 실패든 서버 상태(삭제 중 등)를 다시 받아 온다
         onSettled: () => queryClient.invalidateQueries({ queryKey: [SELLER_POSTS_KEY, sellerId] }),
     });
@@ -109,9 +110,9 @@ export default function SellerPostList() {
         mutationFn: ({ postId, action }: { postId: number; action: SaleToggle }) =>
             toggleSellerPostSale(sellerId as number, postId, action),
         onSuccess: (res, { action }) =>
-            setActionMessage({ tone: 'info', text: res?.msg ?? (action === 'pause' ? '판매를 중지했습니다.' : '판매를 다시 시작했습니다.') }),
+            setActionMessage(res?.msg ?? (action === 'pause' ? '판매를 중지했습니다.' : '판매를 다시 시작했습니다.')),
         onError: (error, { action }) =>
-            setActionMessage({ tone: 'error', text: errorMessage(error, action === 'pause' ? '판매를 중지하지 못했습니다.' : '판매를 다시 시작하지 못했습니다.') }),
+            window.alert(errorMessage(error, action === 'pause' ? '판매를 중지하지 못했습니다.' : '판매를 다시 시작하지 못했습니다.')),
         onSettled: () => queryClient.invalidateQueries({ queryKey: [SELLER_POSTS_KEY, sellerId] }),
     });
 
@@ -145,8 +146,8 @@ export default function SellerPostList() {
     return (
         <div className="flex flex-col gap-space-lg">
             {actionMessage && (
-                <Text className={actionMessage.tone === 'error' ? 'text-error' : 'text-on-surface-variant'} role={actionMessage.tone === 'error' ? 'alert' : 'status'}>
-                    {actionMessage.text}
+                <Text className="text-on-surface-variant" role="status">
+                    {actionMessage}
                 </Text>
             )}
             <Card padding={0} className="overflow-x-auto">

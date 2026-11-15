@@ -149,7 +149,8 @@ function EditFormBody({ source, sellerId }: { source: EditSource; sellerId: numb
             ],
             {
                 onSuccess: () => window.location.assign(ROUTES.sellerProducts),
-                onError: (error) => setFormError(errorMessage(error, '판매글 수정에 실패했습니다.')),
+                // 입력 검사(필수 항목 · 재고 표)는 아래 글씨로, BE가 거절한 이유는 alert 팝업으로 그대로 보여준다
+                onError: (error) => window.alert(errorMessage(error, '판매글 수정에 실패했습니다.')),
             },
         );
     }
