@@ -54,6 +54,17 @@ function canEdit(post: SellerPost): boolean {
     return canDelete(post) && post.status !== 'SUSPENDED';
 }
 
+// 판매 중지 · 재개 (BE SalesPost.validatePausable · validateResumableBySeller)
+// 중지는 판매 중일 때만, 재개는 판매자가 중지한 글일 때만. 수정 중 · 복구 중에는 막는다
+type SaleToggle = 'pause' | 'resume';
+
+function saleToggleOf(post: SellerPost): SaleToggle | null {
+    if (!DELETABLE_UPDATE.has(post.updateStatus ?? 'NEW')) return null;
+    if (post.status === 'ON_SALE') return 'pause';
+    if (post.status === 'PAUSED') return 'resume';
+    return null;
+}
+
 function fetchSellerPosts(sellerId: number, page: number): Promise<SellerPostPage | undefined> {
     return http<RsData<SellerPostPage>>(`/api/sales-posts/sellers/${sellerId}/posts?page=${page}&size=${PAGE_SIZE}`).then(
         (res) => res.data,
@@ -63,6 +74,11 @@ function fetchSellerPosts(sellerId: number, page: number): Promise<SellerPostPag
 // 판매글 삭제. 성공하면 판매글은 "삭제 중"이 되고, 상품 삭제가 끝나면 목록에서 빠진다
 function deleteSellerPost(sellerId: number, postId: number): Promise<void> {
     return http<void>(`/api/sales-posts/sellers/${sellerId}/posts/${postId}`, { method: 'DELETE' });
+}
+
+// 판매 중지(PATCH .../pause) · 재개(PATCH .../resume). 성공하면 BE 메시지를 돌려준다
+function toggleSellerPostSale(sellerId: number, postId: number, action: SaleToggle): Promise<RsData<null>> {
+    return http<RsData<null>>(`/api/sales-posts/sellers/${sellerId}/posts/${postId}/${action}`, { method: 'PATCH' });
 }
 
 // 판매자 본인의 판매글 목록 (삭제된 글만 빼고 모든 상태, 최신순)
@@ -88,6 +104,29 @@ export default function SellerPostList() {
         // 성공이든 실패든 서버 상태(삭제 중 등)를 다시 받아 온다
         onSettled: () => queryClient.invalidateQueries({ queryKey: [SELLER_POSTS_KEY, sellerId] }),
     });
+
+    const toggleSale = useMutation({
+        mutationFn: ({ postId, action }: { postId: number; action: SaleToggle }) =>
+            toggleSellerPostSale(sellerId as number, postId, action),
+        onSuccess: (res, { action }) =>
+            setActionMessage({ tone: 'info', text: res?.msg ?? (action === 'pause' ? '판매를 중지했습니다.' : '판매를 다시 시작했습니다.') }),
+        onError: (error, { action }) =>
+            setActionMessage({ tone: 'error', text: errorMessage(error, action === 'pause' ? '판매를 중지하지 못했습니다.' : '판매를 다시 시작하지 못했습니다.') }),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: [SELLER_POSTS_KEY, sellerId] }),
+    });
+
+    function onToggleSale(post: SellerPost, action: SaleToggle) {
+        if (post.id == null || sellerId == null) return;
+        const title = post.title ?? '이 판매글';
+        const ok = window.confirm(
+            action === 'pause'
+                ? `'${title}'의 판매를 중지할까요?\n중지하면 구매자에게 보이지 않고 새 주문을 받지 않습니다. 언제든 다시 시작할 수 있습니다.`
+                : `'${title}'의 판매를 다시 시작할까요?\n구매자에게 다시 보이고 주문을 받습니다.`,
+        );
+        if (!ok) return;
+        setActionMessage(null);
+        toggleSale.mutate({ postId: post.id, action });
+    }
 
     function onDelete(post: SellerPost) {
         if (post.id == null || sellerId == null) return;
@@ -151,6 +190,8 @@ export default function SellerPostList() {
                                     post={post}
                                     deleting={remove.isPending && remove.variables === post.id}
                                     onDelete={() => onDelete(post)}
+                                    toggling={toggleSale.isPending && toggleSale.variables?.postId === post.id}
+                                    onToggleSale={(action) => onToggleSale(post, action)}
                                 />
                             ))
                         )}
@@ -191,9 +232,12 @@ type SellerPostRowProps = {
     post: SellerPost;
     deleting: boolean;
     onDelete: () => void;
+    toggling: boolean;
+    onToggleSale: (action: SaleToggle) => void;
 };
 
-function SellerPostRow({ post, deleting, onDelete }: SellerPostRowProps) {
+function SellerPostRow({ post, deleting, onDelete, toggling, onToggleSale }: SellerPostRowProps) {
+    const saleToggle = saleToggleOf(post);
     const card = toSalesPostCard(post);
     const sale = SALE_STATUS[post.status ?? ''] ?? { label: post.status ?? '-', variant: 'neutral' as const };
     const update = UPDATE_STATUS[post.updateStatus ?? ''];
@@ -231,6 +275,15 @@ function SellerPostRow({ post, deleting, onDelete }: SellerPostRowProps) {
                 <div className="flex items-center justify-center gap-space-xs whitespace-nowrap">
                     {viewable && <Button label="보기" href={ROUTES.product(post.id ?? 0)} as={Link} variant="secondary" size="sm" />}
                     {canEdit(post) && <Button label="수정" href={ROUTES.sellerProductEdit(post.id ?? 0)} as={Link} variant="secondary" size="sm" />}
+                    {saleToggle && (
+                        <Button
+                            label={toggling ? '처리 중…' : saleToggle === 'pause' ? '판매 중지' : '판매 재개'}
+                            variant="secondary"
+                            size="sm"
+                            isDisabled={toggling || deleting}
+                            onClick={() => onToggleSale(saleToggle)}
+                        />
+                    )}
                     {canDelete(post) && (
                         <Button
                             label={deleting ? '삭제 중…' : '삭제'}
@@ -241,7 +294,7 @@ function SellerPostRow({ post, deleting, onDelete }: SellerPostRowProps) {
                             onClick={onDelete}
                         />
                     )}
-                    {!viewable && !canEdit(post) && !canDelete(post) && <span className="text-outline">-</span>}
+                    {!viewable && !canEdit(post) && !canDelete(post) && !saleToggle && <span className="text-outline">-</span>}
                 </div>
             </td>
         </tr>
