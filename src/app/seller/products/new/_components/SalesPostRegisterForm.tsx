@@ -96,8 +96,9 @@ export default function SalesPostRegisterForm() {
                 onSuccess: () => {
                     window.location.assign(ROUTES.sellerProducts);
                 },
+                // 입력 검사(필수 항목 · 이미지 · 재고 표)는 아래 글씨로, BE가 거절한 이유는 alert 팝업으로 그대로 보여준다
                 onError: (error) => {
-                    setFormError(errorMessage(error, '판매글 등록에 실패했습니다.'));
+                    window.alert(errorMessage(error, '판매글 등록에 실패했습니다.'));
                 },
             },
         );
@@ -298,8 +299,8 @@ export default function SalesPostRegisterForm() {
                             </ul>
                         )}
                     </div>
-                    {(formError || register.isError) && (
-                        <Text className="text-error" role="alert">{formError ?? errorMessage(register.error, '판매글 등록에 실패했습니다.')}</Text>
+                    {formError && (
+                        <Text className="text-error" role="alert">{formError}</Text>
                     )}
                     <div className="pt-space-md border-t border-outline-variant/30 flex flex-col gap-space-sm">
                         <Button className="w-full" label={register.isPending ? '등록 중...' : '저장 및 등록 완료'} icon={<Icon name="check" className="text-[18px]" />} type="submit" variant="primary" isDisabled={register.isPending || isLoading} />

@@ -45,6 +45,7 @@ export const ROUTES = {
     seller: '/seller',
     sellerProducts: '/seller/products',
     sellerProductNew: '/seller/products/new',
+    sellerProductEdit: (id: string | number) => `/seller/products/${id}/edit`,
     sellerShipping: '/seller/shipping',
     sellerClaims: '/seller/claims',
     sellerSettlements: '/seller/settlements',
