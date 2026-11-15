@@ -196,13 +196,15 @@ function EditFormBody({ source, sellerId }: { source: EditSource; sellerId: numb
                                 <label className="text-body-sm font-label-sm text-on-surface" htmlFor="edit-category">
                                     카테고리 선택 <span className="text-error">*</span>
                                 </label>
-                                {/* 카테고리 목록이 온 뒤에 그려야 기존 값이 선택된다 */}
+                                {/* 카테고리 목록이 온 뒤에 그려야 기존 값이 선택된다.
+                                    key가 다르면 React가 "불러오는 중" select를 재사용하지 않고 새로 만든다(defaultValue는 처음 만들 때만 적용) */}
                                 {categoriesLoading ? (
-                                    <select className={`${INPUT_CLASS} disabled:opacity-50`} id="edit-category" disabled>
+                                    <select key="loading" className={`${INPUT_CLASS} disabled:opacity-50`} id="edit-category" disabled>
                                         <option>불러오는 중...</option>
                                     </select>
                                 ) : (
                                     <select
+                                        key="loaded"
                                         className={INPUT_CLASS}
                                         id="edit-category"
                                         name="categoryId"
