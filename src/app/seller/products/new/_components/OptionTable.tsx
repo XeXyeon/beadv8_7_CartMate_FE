@@ -8,12 +8,16 @@ import { useProductOptionTypes } from '../_lib/productOptions';
 import type { CreateInventoryRequest } from '../_lib/registerSalesPost';
 
 // 재고 한 행 = 상품옵션 조합 하나 + 추가금액 + 재고 수량 (BE CreateInventory와 같은 단위)
-type InventoryRow = {
+export type InventoryRow = {
     key: number;
     // 옵션 종류(typeId)별로 고른 상품옵션(optionId). 아직 안 골랐으면 null
     optionIds: Record<number, number | null>;
     additionalPrice: string;
     stockQuantity: string;
+    // 수정 화면에서 불러온 기존 재고만 있다. BE는 기존 재고의 조합을 바꾸지 못하므로 이 행은 상품옵션을 잠근다
+    inventoryId?: number;
+    // 기존 재고의 선점 수량(결제 전 잡아 둔 수량). 재고 수량을 이보다 적게 잡지 않도록 안내만 한다
+    reservedQuantity?: number;
 };
 
 // 재고 표 상태. 등록 폼이 들고 있다가 저장할 때 inventoryList로 바꿔 보낸다.
@@ -106,12 +110,14 @@ function countCombos({ typeIds, rows }: InventoryTableState): Map<string, number
 type OptionTableProps = {
     value: InventoryTableState;
     onChange: Dispatch<SetStateAction<InventoryTableState>>;
+    // 수정 화면: 옵션 종류(열)를 바꾸지 못하고, 같은 옵션 종류로 행 추가 · 기존 행 금액 / 수량 수정 · 행 삭제만 한다
+    typesLocked?: boolean;
 };
 
 // 재고 표: 옵션 종류를 고르면 열이 생기고, 행마다 그 종류의 상품옵션을 select로 고른다.
 // 옵션 종류를 하나도 고르지 않으면 옵션 없는 상품의 "기본" 재고 한 행만 둔다.
 // 상태는 등록 폼이 들고(value), 바꿀 때는 직전 상태를 받는 갱신 함수로 알린다(onChange = setState).
-export default function OptionTable({ value: table, onChange: setTable }: OptionTableProps) {
+export default function OptionTable({ value: table, onChange: setTable, typesLocked = false }: OptionTableProps) {
     const { types, optionsByTypeId, isLoading, error } = useProductOptionTypes();
     const { typeIds, rows } = table;
     const setRows = (update: (rows: InventoryRow[]) => InventoryRow[]) =>
@@ -181,7 +187,11 @@ export default function OptionTable({ value: table, onChange: setTable }: Option
             <div className="flex items-center justify-between border-b border-outline-variant/30 pb-space-md">
                 <div>
                     <Heading level={2}>옵션 · 재고</Heading>
-                    <Text color="secondary">옵션 종류를 고르고, 옵션 조합별 추가 금액과 재고 수량을 설정합니다.</Text>
+                    <Text color="secondary">
+                        {typesLocked
+                            ? '등록된 옵션 조합은 바꿀 수 없습니다. 추가 금액 · 재고 수량을 고치거나, 같은 옵션 종류로 조합을 추가 · 삭제합니다.'
+                            : '옵션 종류를 고르고, 옵션 조합별 추가 금액과 재고 수량을 설정합니다.'}
+                    </Text>
                 </div>
                 <Button
                     label="행 추가"
@@ -197,45 +207,50 @@ export default function OptionTable({ value: table, onChange: setTable }: Option
                     옵션 선택
                 </label>
                 <div className="flex flex-wrap items-center gap-space-sm">
-                    <select
-                        id="option-type-picker"
-                        className={`${SELECT_CLASS} max-w-60`}
-                        value=""
-                        disabled={isLoading || selectableTypes.length === 0}
-                        onChange={(e) => {
-                            if (e.target.value !== '') addType(Number(e.target.value));
-                        }}
-                    >
-                        <option value="">{isLoading ? '불러오는 중...' : '옵션 종류 추가'}</option>
-                        {selectableTypes.map((type) => (
-                            <option key={type.typeId} value={type.typeId}>
-                                {type.typeName}
-                            </option>
-                        ))}
-                    </select>
+                    {!typesLocked && (
+                        <select
+                            id="option-type-picker"
+                            className={`${SELECT_CLASS} max-w-60`}
+                            value=""
+                            disabled={isLoading || selectableTypes.length === 0}
+                            onChange={(e) => {
+                                if (e.target.value !== '') addType(Number(e.target.value));
+                            }}
+                        >
+                            <option value="">{isLoading ? '불러오는 중...' : '옵션 종류 추가'}</option>
+                            {selectableTypes.map((type) => (
+                                <option key={type.typeId} value={type.typeId}>
+                                    {type.typeName}
+                                </option>
+                            ))}
+                        </select>
+                    )}
                     {typeIds.map((typeId) => (
                         <span
                             key={typeId}
-                            className="inline-flex items-center gap-1 h-8 pl-space-sm pr-1 rounded-full bg-surface-container text-body-sm text-on-surface"
+                            className={`inline-flex items-center gap-1 h-8 pl-space-sm rounded-full bg-surface-container text-body-sm text-on-surface ${typesLocked ? 'pr-space-sm' : 'pr-1'}`}
                         >
                             {typeName(typeId)}
-                            <button
-                                type="button"
-                                className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-outline-variant/40"
-                                aria-label={`${typeName(typeId)} 옵션 종류 제거`}
-                                onClick={() => removeType(typeId)}
-                            >
-                                ×
-                            </button>
+                            {!typesLocked && (
+                                <button
+                                    type="button"
+                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-outline-variant/40"
+                                    aria-label={`${typeName(typeId)} 옵션 종류 제거`}
+                                    onClick={() => removeType(typeId)}
+                                >
+                                    ×
+                                </button>
+                            )}
                         </span>
                     ))}
+                    {typesLocked && !hasOptions && <Text color="secondary">옵션 없는 상품</Text>}
                 </div>
                 {error ? (
                     <Text className="text-error" role="alert">
                         {errorMessage(error, '옵션 목록을 불러오지 못했습니다.')}
                     </Text>
                 ) : (
-                    !hasOptions && <Text color="secondary">옵션 종류를 고르지 않으면 옵션 없는 상품으로 재고 한 줄(기본)만 등록합니다.</Text>
+                    !hasOptions && !typesLocked && <Text color="secondary">옵션 종류를 고르지 않으면 옵션 없는 상품으로 재고 한 줄(기본)만 등록합니다.</Text>
                 )}
             </div>
 
@@ -272,6 +287,7 @@ export default function OptionTable({ value: table, onChange: setTable }: Option
                                                         className={SELECT_CLASS}
                                                         aria-label={typeName(typeId)}
                                                         value={row.optionIds[typeId] ?? ''}
+                                                        disabled={row.inventoryId != null}
                                                         onChange={(e) => selectOption(row.key, typeId, e.target.value)}
                                                     >
                                                         <option value="">선택</option>
@@ -307,6 +323,11 @@ export default function OptionTable({ value: table, onChange: setTable }: Option
                                                 value={row.stockQuantity}
                                                 onChange={(e) => updateRow(row.key, { stockQuantity: e.target.value })}
                                             />
+                                            {(row.reservedQuantity ?? 0) > 0 && (
+                                                <span className="block mt-1 text-caption text-on-surface-variant">
+                                                    결제 대기로 선점된 {row.reservedQuantity}개 포함
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="p-space-sm text-center">
                                             <Button

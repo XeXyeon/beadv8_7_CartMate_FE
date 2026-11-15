@@ -48,6 +48,12 @@ function canDelete(post: SellerPost): boolean {
     return !NOT_DELETABLE_SALE.has(post.status ?? '') && DELETABLE_UPDATE.has(post.updateStatus ?? 'NEW');
 }
 
+// 수정할 수 있는 판매글: 삭제 조건과 같고(BE validateUpdatable · 수정 가능 상태), 운영 중지 글은 뺀다.
+// 운영 중지 글은 판매글 상세 조회가 404라 수정 화면을 채울 수 없다
+function canEdit(post: SellerPost): boolean {
+    return canDelete(post) && post.status !== 'SUSPENDED';
+}
+
 function fetchSellerPosts(sellerId: number, page: number): Promise<SellerPostPage | undefined> {
     return http<RsData<SellerPostPage>>(`/api/sales-posts/sellers/${sellerId}/posts?page=${page}&size=${PAGE_SIZE}`).then(
         (res) => res.data,
@@ -224,6 +230,7 @@ function SellerPostRow({ post, deleting, onDelete }: SellerPostRowProps) {
             <td className="py-space-sm px-space-md">
                 <div className="flex items-center justify-center gap-space-xs whitespace-nowrap">
                     {viewable && <Button label="보기" href={ROUTES.product(post.id ?? 0)} as={Link} variant="secondary" size="sm" />}
+                    {canEdit(post) && <Button label="수정" href={ROUTES.sellerProductEdit(post.id ?? 0)} as={Link} variant="secondary" size="sm" />}
                     {canDelete(post) && (
                         <Button
                             label={deleting ? '삭제 중…' : '삭제'}
@@ -234,7 +241,7 @@ function SellerPostRow({ post, deleting, onDelete }: SellerPostRowProps) {
                             onClick={onDelete}
                         />
                     )}
-                    {!viewable && !canDelete(post) && <span className="text-outline">-</span>}
+                    {!viewable && !canEdit(post) && !canDelete(post) && <span className="text-outline">-</span>}
                 </div>
             </td>
         </tr>
