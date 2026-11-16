@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, type Dispatch, type SetStateAction } from 'react';
+import { Fragment, type Dispatch, type SetStateAction, type WheelEvent } from 'react';
 import { Button, Card, Heading, Text } from '@astryxdesign/core';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
@@ -28,6 +28,12 @@ export type InventoryTableState = {
     rows: InventoryRow[];
     nextKey: number;
 };
+
+// 숫자 칸(type="number")에 커서가 있을 때 휠을 굴리면 브라우저가 값을 1씩 바꾼다(50000 → 49,998).
+// 페이지를 스크롤하려다 가격 · 수량이 바뀌지 않게, 휠을 굴리는 순간 포커스를 빼서 휠은 페이지 스크롤로만 쓴다
+export function blurOnWheel(event: WheelEvent<HTMLInputElement>) {
+    event.currentTarget.blur();
+}
 
 // 처음 상태: 옵션 없는 상품의 "기본" 재고 한 행
 export function createInventoryTable(): InventoryTableState {
@@ -309,6 +315,7 @@ export default function OptionTable({ value: table, onChange: setTable, typesLoc
                                                 min={0}
                                                 step={1}
                                                 aria-label="추가 금액"
+                                                onWheel={blurOnWheel}
                                                 value={row.additionalPrice}
                                                 onChange={(e) => updateRow(row.key, { additionalPrice: e.target.value })}
                                             />
@@ -320,6 +327,7 @@ export default function OptionTable({ value: table, onChange: setTable, typesLoc
                                                 min={0}
                                                 step={1}
                                                 aria-label="재고 수량"
+                                                onWheel={blurOnWheel}
                                                 value={row.stockQuantity}
                                                 onChange={(e) => updateRow(row.key, { stockQuantity: e.target.value })}
                                             />

@@ -9,7 +9,7 @@ import { useCurrentUser } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 import { useProductCategories } from '../_lib/productOptions';
 import { registerSalesPostMultipart } from '../_lib/registerSalesPost';
-import OptionTable, { createInventoryTable, inventoryTableProblem, toCreateInventories } from './OptionTable';
+import OptionTable, { blurOnWheel, createInventoryTable, inventoryTableProblem, toCreateInventories } from './OptionTable';
 
 const EDITOR_TOOLS = ['format_bold', 'format_italic', 'format_underlined'];
 const EDITOR_TOOLS_2 = ['format_list_bulleted', 'image'];
@@ -205,6 +205,7 @@ export default function SalesPostRegisterForm() {
                                     type="number"
                                     min={0}
                                     step={1}
+                                    onWheel={blurOnWheel}
                                     required
                                 />
                                 <span className="absolute right-4 text-body-sm text-on-surface-variant font-label-sm">원</span>

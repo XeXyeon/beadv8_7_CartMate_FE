@@ -8,7 +8,7 @@ import Icon from '@/components/ui/Icon';
 import { useCurrentUser } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 import { imageUrl } from '@/lib/salesPost';
-import OptionTable, { inventoryTableProblem } from '../../../new/_components/OptionTable';
+import OptionTable, { blurOnWheel, inventoryTableProblem } from '../../../new/_components/OptionTable';
 import { useProductCategories } from '../../../new/_lib/productOptions';
 import {
     activeImages,
@@ -246,6 +246,7 @@ function EditFormBody({ source, sellerId }: { source: EditSource; sellerId: numb
                                     type="number"
                                     min={0}
                                     step={1}
+                                    onWheel={blurOnWheel}
                                     defaultValue={product.basePrice}
                                     required
                                 />
