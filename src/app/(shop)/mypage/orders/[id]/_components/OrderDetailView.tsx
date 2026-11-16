@@ -2,15 +2,16 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Badge, Button, Card, EmptyState, Heading, type BadgeVariant } from '@astryxdesign/core';
+import { Badge, Button, Card, EmptyState, Heading, Text, type BadgeVariant } from '@astryxdesign/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetDashboardQueryKey } from '@/api/generated/individual-group-purchase-controller/individual-group-purchase-controller';
 import type { OrderDetailResponse, RsDataOrderDetailResponse } from '@/api/generated/model';
 import { getGetDetailQueryKey, getGetMyListQueryKey, useCancel, useGetDetail } from '@/api/generated/order-controller/order-controller';
 import { getPreviewQueryKey } from '@/api/generated/order-controller/order-controller';
+import { useGetByOrder } from '@/api/generated/payment-controller/payment-controller';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
-import { ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
+import { buyerCancelLabel, ORDER_CANCEL_MESSAGE, partialCancelTitle } from '@/lib/cancelReason';
 import { formatDateTime, parseKst } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
@@ -52,6 +53,9 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
     const kind = order.orderType === 'INDIVIDUAL_GROUP' ? 'INDIVIDUAL_GROUP' : 'PERSONAL';
     const items = order.items ?? [];
     const itemsTotal = items.reduce((sum, item) => sum + (item.amount ?? (item.unitPrice ?? 0) * (item.quantity ?? 0)), 0);
+    // 판매글 내림·판매자 사유 취소로 일부 상품만 취소된 주문. 주문 상태는 결제 완료 그대로라 항목을 보고 판단한다.
+    const canceledItems = items.filter((item) => item.canceledAt);
+    const partiallyCanceled = order.status === 'PAID' && canceledItems.length > 0;
 
     return (
         <div className="flex flex-col gap-space-lg">
@@ -62,13 +66,14 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
                         <Heading level={1}>주문 {order.orderNumber}</Heading>
                         <Badge label={KIND_LABEL[kind]} variant={kind === 'INDIVIDUAL_GROUP' ? 'purple' : 'neutral'} />
                         <Badge label={status.label} variant={TONE_VARIANT[status.tone]} />
+                        {partiallyCanceled && <Badge label="일부 취소" variant="warning" />}
                     </div>
                     <div className="font-body-sm text-body-sm text-on-surface-variant">주문일시 {formatDateTime(order.createdAt)}</div>
                 </div>
                 <OrderSteps order={order} orderId={orderId} />
             </Card>
 
-            <OrderStatusPanel order={order} orderId={orderId} />
+            <OrderStatusPanel order={order} orderId={orderId} canceledReasons={partiallyCanceled ? canceledItems.map((item) => item.cancelReason) : []} />
 
             {/* 결제가 끝난 주문만 배송이 생긴다 */}
             {order.paidAt && <OrderDeliveries orderId={orderId} />}
@@ -80,20 +85,31 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
                     <p className="font-body-sm text-body-sm text-on-surface-variant">상품 정보가 없습니다.</p>
                 ) : (
                     <ul className="flex flex-col divide-y divide-surface-container">
-                        {items.map((item) => (
-                            <li key={item.itemId} className="py-space-sm flex items-center justify-between gap-space-md">
-                                <div className="min-w-0">
-                                    <div className="font-body-md text-body-md text-on-surface font-bold truncate">{item.productName}</div>
-                                    <div className="font-caption text-caption text-on-surface-variant mt-0.5">
-                                        {item.optionName && `옵션: ${item.optionName} · `}
-                                        {formatPrice(item.unitPrice ?? 0)} × {item.quantity}개
+                        {items.map((item) => {
+                            const canceled = !!item.canceledAt;
+                            const reason = buyerCancelLabel(item.cancelReason);
+                            return (
+                                <li key={item.itemId} className="py-space-sm flex items-center justify-between gap-space-md" data-item-canceled={canceled || undefined}>
+                                    <div className="min-w-0 flex flex-col">
+                                        <Text weight="bold" maxLines={1} color={canceled ? 'disabled' : 'primary'} hasStrikethrough={canceled}>
+                                            {item.productName}
+                                        </Text>
+                                        <Text type="supporting">
+                                            {item.optionName && `옵션: ${item.optionName} · `}
+                                            {formatPrice(item.unitPrice ?? 0)} × {item.quantity}개
+                                        </Text>
+                                        {canceled && (
+                                            <span className="mt-1">
+                                                <Badge label={`취소${reason ? ` · ${reason}` : ''} · ${formatDateTime(item.canceledAt)}`} variant="red" />
+                                            </span>
+                                        )}
                                     </div>
-                                </div>
-                                <span className="font-label-md text-label-md text-on-surface font-bold shrink-0">
-                                    {formatPrice(item.amount ?? (item.unitPrice ?? 0) * (item.quantity ?? 0))}
-                                </span>
-                            </li>
-                        ))}
+                                    <Text weight="bold" color={canceled ? 'disabled' : 'primary'} hasStrikethrough={canceled}>
+                                        {formatPrice(item.amount ?? (item.unitPrice ?? 0) * (item.quantity ?? 0))}
+                                    </Text>
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
             </section>
@@ -135,6 +151,7 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
                         <dd className="pt-space-xs mt-space-xs border-t border-surface-container font-headline-sm text-headline-sm text-primary font-bold text-right">
                             {formatPrice(order.totalAmount ?? 0)}
                         </dd>
+                        {order.paidAt && (canceledItems.length > 0 || order.status === 'CANCELED') && <RefundRow orderId={orderId} />}
                     </dl>
                 </section>
             </div>
@@ -146,6 +163,22 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
                 )}
             </div>
         </div>
+    );
+}
+
+// 실제로 돌려준 금액은 결제 서버가 안다. 주문 서버가 계산한 금액과 다를 수 있어 결제 내역에서 읽는다.
+// 취소 이벤트가 아직 처리되지 않았으면 0이라 "환불 진행 중"으로 보여 준다.
+function RefundRow({ orderId }: { orderId: number }) {
+    const payment = useGetByOrder(orderId);
+    const refunded = payment.data?.data?.refundedAmount ?? 0;
+    const text = payment.isPending ? '확인 중' : payment.isError ? '예치금 내역에서 확인' : refunded > 0 ? `-${formatPrice(refunded)}` : '환불 진행 중';
+    return (
+        <>
+            <dt className="text-outline">환불 금액</dt>
+            <dd className={`text-right font-bold ${refunded > 0 ? 'text-primary' : 'text-on-surface-variant'}`} data-refunded-amount={refunded}>
+                {text}
+            </dd>
+        </>
     );
 }
 
@@ -193,7 +226,7 @@ function OrderSteps({ order, orderId }: { order: OrderDetailResponse; orderId: n
 }
 
 // 상태별 안내와 할 수 있는 일(결제 · 취소). 결제 완료 주문 취소는 BE에 자동 환불이 없어 막는다.
-function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orderId: number }) {
+function OrderStatusPanel({ order, orderId, canceledReasons }: { order: OrderDetailResponse; orderId: number; canceledReasons: (string | undefined)[] }) {
     const queryClient = useQueryClient();
     // 결제 기한 지남 판단 기준 시각. 화면에 들어온 시점으로 고정한다(지나면 BE 스케줄러가 곧 자동 취소).
     const [now] = useState(Date.now);
@@ -252,6 +285,14 @@ function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orde
                                 ? '결제 기한이 지났습니다. 주문은 곧 자동으로 취소됩니다.'
                                 : `${formatDateTime(order.paymentDeadlineAt)}까지 결제하지 않으면 자동으로 취소됩니다.`}
                         </p>
+                    </div>
+                </div>
+            ) : canceledReasons.length > 0 ? (
+                <div className="flex items-start gap-space-sm font-body-sm text-body-sm">
+                    <Icon name="info" className="text-[22px] text-primary mt-0.5" />
+                    <div>
+                        <div className="font-bold text-on-surface">{partialCancelTitle(canceledReasons)}</div>
+                        <p className="text-on-surface-variant mt-0.5">취소된 상품 금액은 예치금으로 환불됩니다. 나머지 상품은 그대로 배송됩니다.</p>
                     </div>
                 </div>
             ) : (

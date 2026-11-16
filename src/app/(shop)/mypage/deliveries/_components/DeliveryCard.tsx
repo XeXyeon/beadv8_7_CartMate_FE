@@ -14,6 +14,7 @@ import {
 import type { DeliveryDetailResponse, RsDataDeliveryDetailResponse } from '@/api/generated/model';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { buyerCancelLabel } from '@/lib/cancelReason';
 import { formatDateTime, toKstLocal } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { errorStatus, hasCode } from '../../orders/_lib/orderView';
@@ -77,7 +78,9 @@ function DeliveryCardBody({ delivery, deliveryId, title, showItems, showReceiver
                     <Icon name="cancel" className="text-[22px] text-outline mt-0.5" />
                     <div>
                         <div className="font-bold text-on-surface">배송이 취소되었습니다</div>
-                        <p className="text-on-surface-variant mt-0.5">{formatDateTime(delivery.canceledAt)}</p>
+                        <p className="text-on-surface-variant mt-0.5" data-cancel-reason={delivery.cancelReason}>
+                            {[buyerCancelLabel(delivery.cancelReason), formatDateTime(delivery.canceledAt)].filter(Boolean).join(' · ')}
+                        </p>
                     </div>
                 </div>
             ) : (
