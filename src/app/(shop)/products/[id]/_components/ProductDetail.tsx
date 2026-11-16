@@ -20,6 +20,7 @@ import { SellerTrustPanel, toSellerTrust } from '../../../_components/SellerTrus
 import ProductActions from './ProductActions';
 import ProductOptions from './ProductOptions';
 import ProductPaybackConditions from './ProductPaybackConditions';
+import ProductReviews from './ProductReviews';
 
 // 판매글 응답의 리뷰 집계. 생성 타입(orval)에 아직 없어 BE 응답(SelectSalesPostResponse)에 맞춰 덧붙인다.
 // reviewCount: 삭제된 리뷰를 뺀 리뷰 수, averageRating: 소수 첫째 자리 평균 별점(리뷰가 없으면 0)
@@ -140,21 +141,27 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                     </Card>
                 )}
             </section>
+            {post.id != null && <ProductReviews postId={post.id} reviewCount={post.reviewCount ?? 0} />}
         </div>
     );
 }
 
-// 별점 요약: ★ 4.3 · 리뷰 12개. 리뷰가 없으면 별 대신 안내만 보여 준다(0점으로 보이지 않게)
+// 별점 요약: ★ 4.3 · 리뷰 12개. 누르면 아래 리뷰 목록(#reviews)으로 간다.
+// 리뷰가 없으면 별 대신 안내만 보여 준다(0점으로 보이지 않게)
 function RatingSummary({ count, average }: { count: number; average: number }) {
     if (count === 0) {
         return <Text type="supporting" color="secondary">아직 리뷰가 없습니다</Text>;
     }
     return (
-        <div className="flex items-center gap-space-xs" aria-label={`평균 별점 ${average.toFixed(1)}점, 리뷰 ${count}개`}>
+        <a
+            href="#reviews"
+            className="flex w-fit items-center gap-space-xs hover:underline"
+            aria-label={`평균 별점 ${average.toFixed(1)}점, 리뷰 ${count}개 보기`}
+        >
             <Icon name="star" filled className="text-[20px] text-amber-500" />
             <Text weight="semibold">{average.toFixed(1)}</Text>
             <Text type="supporting" color="secondary">· 리뷰 {count.toLocaleString('ko-KR')}개</Text>
-        </div>
+        </a>
     );
 }
 
