@@ -7,7 +7,7 @@ import { Badge, Button, Card, Text } from '@astryxdesign/core';
 import type { PageResponseSelectSalesPostResponse, SelectSalesPostResponse } from '@/api/generated/model';
 import { errorMessage, http, type RsData } from '@/api/http';
 import Icon from '@/components/ui/Icon';
-import { useCurrentUser } from '@/lib/auth';
+import { useMySellerId } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice, toSalesPostCard } from '@/lib/salesPost';
@@ -83,8 +83,7 @@ function toggleSellerPostSale(sellerId: number, postId: number, action: SaleTogg
 
 // 판매자 본인의 판매글 목록 (삭제된 글만 빼고 모든 상태, 최신순)
 export default function SellerPostList() {
-    const { user, isLoading: userLoading } = useCurrentUser();
-    const sellerId = user?.id;
+    const { sellerId, isLoading: userLoading } = useMySellerId();
     const [page, setPage] = useState(0);
 
     const queryClient = useQueryClient();
@@ -170,7 +169,7 @@ export default function SellerPostList() {
                             </tr>
                         ) : sellerId == null ? (
                             <tr>
-                                <td colSpan={6} className="py-space-xl text-center text-error">판매자 정보를 확인할 수 없습니다. 다시 로그인해주세요.</td>
+                                <td colSpan={6} className="py-space-xl text-center text-error">판매자 등록 정보가 없습니다. 판매자 신청 후 판매글을 관리할 수 있습니다.</td>
                             </tr>
                         ) : list.isError ? (
                             <tr>

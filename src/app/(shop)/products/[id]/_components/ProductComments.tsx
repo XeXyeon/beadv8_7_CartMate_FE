@@ -10,7 +10,7 @@ import { Heading } from '@astryxdesign/core/Heading';
 import { Text } from '@astryxdesign/core/Text';
 import { errorMessage, http, type RsData } from '@/api/http';
 import Icon from '@/components/ui/Icon';
-import { useCurrentUser } from '@/lib/auth';
+import { useCurrentUser, useMySellerId } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 
@@ -49,6 +49,7 @@ type Props = { postId: number; sellerId: number | undefined };
 // 상품 상세 아래 댓글 섹션: 목록(원댓글 10개씩 + 답글), 작성(비밀 댓글), 답글, 수정, 삭제
 export default function ProductComments({ postId, sellerId }: Props) {
     const { user } = useCurrentUser();
+    const { sellerId: mySellerId } = useMySellerId();
     const queryClient = useQueryClient();
     const queryKey = ['sales-post-comments', postId];
     const query = useInfiniteQuery({
@@ -68,7 +69,8 @@ export default function ProductComments({ postId, sellerId }: Props) {
     const run = (url: string, init: RequestInit) => write.mutateAsync({ url, init }).then(() => true, () => false);
 
     // 답글은 그 판매글의 판매자나 원댓글 작성자만 쓸 수 있다 (BE SalesPostCommentCreateUseCase.createReply)
-    const isPostSeller = user?.id != null && sellerId != null && user.id === sellerId;
+    // 판매글의 sellerId는 판매자 번호(seller.id)라서 회원 번호(user.id)가 아니라 내 판매자 번호와 비교한다
+    const isPostSeller = mySellerId != null && sellerId != null && mySellerId === sellerId;
 
     const comments = query.data?.pages.flatMap((page) => page.content ?? []) ?? [];
     const total = query.data?.pages[0]?.totalElements ?? 0;

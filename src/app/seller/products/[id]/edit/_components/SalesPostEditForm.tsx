@@ -5,7 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Card, Heading, Text } from '@astryxdesign/core';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
-import { useCurrentUser } from '@/lib/auth';
+import { useMySellerId } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 import { imageUrl } from '@/lib/salesPost';
 import OptionTable, { blurOnWheel, inventoryTableProblem } from '../../../new/_components/OptionTable';
@@ -38,7 +38,7 @@ type EditImage = { kind: 'existing'; id: number; url: string | null } | { kind: 
 
 // 판매글 수정: 기존 값을 불러와 채우고 PATCH /api/sales-posts로 보낸다
 export default function SalesPostEditForm({ postId }: { postId: number }) {
-    const { user, isLoading: userLoading } = useCurrentUser();
+    const { sellerId, isLoading: userLoading } = useMySellerId();
     // 수정 화면의 원본은 들어올 때 한 번만 받는다. 다른 탭에 다녀오는 등으로 다시 받다가 실패하면
     // 입력 중인 폼이 에러 화면으로 바뀌어 고친 내용이 사라지므로, 자동으로 다시 받지 않는다
     const source = useQuery({
@@ -58,7 +58,7 @@ export default function SalesPostEditForm({ postId }: { postId: number }) {
         return <Text className="text-error" role="alert">{errorMessage(source.error, '판매글을 불러오지 못했습니다.')}</Text>;
     }
     const { post } = source.data;
-    if (user?.id == null || user.id !== post.sellerId) {
+    if (sellerId == null || sellerId !== post.sellerId) {
         return <Text className="text-error" role="alert">본인이 등록한 판매글만 수정할 수 있습니다.</Text>;
     }
     const blocked = BLOCKED_SALE[post.status] ?? BLOCKED_UPDATE[post.updateStatus ?? ''];
@@ -71,7 +71,7 @@ export default function SalesPostEditForm({ postId }: { postId: number }) {
         );
     }
     // 불러온 값으로 입력칸 · 재고 표 · 이미지의 처음 상태를 만든다
-    return <EditFormBody source={source.data} sellerId={user.id} />;
+    return <EditFormBody source={source.data} sellerId={sellerId} />;
 }
 
 function EditFormBody({ source, sellerId }: { source: EditSource; sellerId: number }) {
