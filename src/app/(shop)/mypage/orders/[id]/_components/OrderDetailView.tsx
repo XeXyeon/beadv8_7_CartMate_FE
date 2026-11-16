@@ -259,6 +259,23 @@ function OrderSteps({ order, orderId }: { order: OrderDetailResponse; orderId: n
     );
 }
 
+// 판매자가 배송을 확인한 뒤의 단계. 뒤로 갈수록 많이 진행된 단계다.
+const BLOCKING_STAGES = ['PREPARING', 'SHIPPING', 'DELIVERED', 'CONFIRMED'] as const;
+type BlockingStage = (typeof BLOCKING_STAGES)[number];
+
+const BLOCKED_CANCEL_MESSAGE: Record<BlockingStage, string> = {
+    PREPARING: '판매자가 이미 배송 준비를 시작해 취소할 수 없습니다. 상품을 받은 뒤 교환 · 환불 요청으로 진행해 주세요.',
+    SHIPPING: '이미 발송된 주문이라 취소할 수 없습니다. 상품을 받은 뒤 교환 · 환불 요청으로 진행해 주세요.',
+    DELIVERED: '배송이 완료된 주문이라 취소할 수 없습니다. 교환 · 환불이 필요하면 아래 배송 조회에서 신청해 주세요.',
+    CONFIRMED: '구매가 확정된 주문이라 취소할 수 없습니다.',
+};
+
+// 취소되지 않은 배송 중 가장 많이 진행된 단계. 모두 배송요청(또는 취소)이면 undefined.
+function furthestStage(statuses: (string | undefined)[]): BlockingStage | undefined {
+    const index = Math.max(-1, ...statuses.map((status) => BLOCKING_STAGES.indexOf(status as BlockingStage)));
+    return index >= 0 ? BLOCKING_STAGES[index] : undefined;
+}
+
 // 상태별 안내와 할 수 있는 일(결제 · 취소).
 // 결제 대기 주문은 바로 취소된다. 결제 완료 주문은 취소 요청이 되고, 배송 서버가 판매자 확인 전(배송요청)이면 취소 · 전액 환불,
 // 판매자가 이미 확인했으면(배송준비 이후) 거절해 결제 완료로 돌아온다(cancelRejectCode).
@@ -326,7 +343,9 @@ function OrderStatusPanel({ order, orderId, canceledReasons }: { order: OrderDet
     const expired = pending && (parseKst(order.paymentDeadlineAt)?.getTime() ?? Infinity) <= now;
     const busy = cancel.isPending;
     // 판매자가 이미 배송을 확인했으면(배송준비 이후) BE가 거절하므로 미리 막고 이유를 보여 준다.
-    const sellerConfirmed = !pending && (deliveries ?? []).some((delivery) => delivery.status !== 'CANCELED' && delivery.status !== 'REQUESTED');
+    // 배송이 여러 건이면 가장 많이 진행된 배송 기준으로 안내한다(한 건이라도 확인됐으면 주문 전체를 취소할 수 없다).
+    const blockedStage = pending ? undefined : furthestStage((deliveries ?? []).map((delivery) => delivery.status));
+    const sellerConfirmed = blockedStage !== undefined;
     const rejectMessage = cancelRejectMessage(order.cancelRejectCode);
 
     const onCancel = () => {
@@ -395,9 +414,7 @@ function OrderStatusPanel({ order, orderId, canceledReasons }: { order: OrderDet
                         <button className={`${OUTLINE_BUTTON} w-full`} type="button" disabled={busy || sellerConfirmed} onClick={onCancel}>
                             {busy ? '취소 요청하는 중...' : '주문 취소'}
                         </button>
-                        {sellerConfirmed && !rejectMessage && (
-                            <p className="font-caption text-caption text-on-surface-variant">판매자가 이미 배송 준비를 시작해 취소할 수 없습니다. 상품을 받은 뒤 교환 · 환불 요청으로 진행해 주세요.</p>
-                        )}
+                        {blockedStage && !rejectMessage && <p className="font-caption text-caption text-on-surface-variant">{BLOCKED_CANCEL_MESSAGE[blockedStage]}</p>}
                     </div>
                 )}
             </div>
