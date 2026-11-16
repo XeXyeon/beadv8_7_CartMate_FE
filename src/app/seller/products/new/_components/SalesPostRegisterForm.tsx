@@ -5,11 +5,11 @@ import { useMutation } from '@tanstack/react-query';
 import { Button, Card, Heading, Text } from '@astryxdesign/core';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
-import { useCurrentUser } from '@/lib/auth';
+import { useMySellerId } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 import { useProductCategories } from '../_lib/productOptions';
 import { registerSalesPostMultipart } from '../_lib/registerSalesPost';
-import OptionTable, { createInventoryTable, inventoryTableProblem, toCreateInventories } from './OptionTable';
+import OptionTable, { blurOnWheel, createInventoryTable, inventoryTableProblem, toCreateInventories } from './OptionTable';
 
 const EDITOR_TOOLS = ['format_bold', 'format_italic', 'format_underlined'];
 const EDITOR_TOOLS_2 = ['format_list_bulleted', 'image'];
@@ -21,7 +21,7 @@ type PickedImage = { file: File; preview: string };
 
 // 판매글 등록 → POST /api/sales-posts (multipart: request JSON + images)
 export default function SalesPostRegisterForm() {
-    const { user, isLoading } = useCurrentUser();
+    const { sellerId, isLoading } = useMySellerId();
     const { categories, isLoading: categoriesLoading, error: categoriesError } = useProductCategories();
     const register = useMutation({
         mutationFn: ({ request, images: files }: { request: Parameters<typeof registerSalesPostMultipart>[0]; images: Blob[] }) =>
@@ -46,8 +46,8 @@ export default function SalesPostRegisterForm() {
         event.preventDefault();
         setFormError(null);
 
-        if (!user?.id) {
-            setFormError('로그인이 필요합니다.');
+        if (sellerId == null) {
+            setFormError('판매자 등록 정보가 없습니다. 판매자 신청 후 판매글을 등록할 수 있습니다.');
             return;
         }
         if (images.length === 0) {
@@ -76,7 +76,7 @@ export default function SalesPostRegisterForm() {
         register.mutate(
             {
                 request: {
-                    sellerId: user.id,
+                    sellerId,
                     title,
                     content: content || title,
                     productList: [
@@ -205,6 +205,7 @@ export default function SalesPostRegisterForm() {
                                     type="number"
                                     min={0}
                                     step={1}
+                                    onWheel={blurOnWheel}
                                     required
                                 />
                                 <span className="absolute right-4 text-body-sm text-on-surface-variant font-label-sm">원</span>

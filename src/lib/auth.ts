@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useLogout as useLogoutMutation } from '@/api/generated/auth-controller/auth-controller';
 import { getMeQueryKey, me } from '@/api/generated/member-controller/member-controller';
+import { useMySeller } from '@/api/generated/seller-controller/seller-controller';
 import type { MemberDto } from '@/api/generated/model';
 import { ApiError } from '@/api/http';
 import { ROUTES } from '@/lib/routes';
@@ -30,6 +31,24 @@ export function useCurrentUser() {
     });
     const user = query.data ?? null;
     return { user, isLoggedIn: user !== null, isLoading: query.isPending };
+}
+
+// 로그인한 회원의 판매자 번호(seller.id). 회원 번호(user.id)와 다른 값이다.
+// 판매글 · 주문 · 배송 · 정산의 sellerId는 모두 이 판매자 번호라서, 판매자인지 · 내 판매글인지는 이 값으로 판단한다.
+// 판매자 등록 정보가 없으면(구매자 · 관리자) null
+export function useMySellerId() {
+    const { isLoggedIn, isLoading: userLoading } = useCurrentUser();
+    const query = useMySeller({
+        query: {
+            enabled: isLoggedIn,
+            staleTime: 5 * 60 * 1000,
+            select: (res) => res.data?.id ?? null,
+        },
+    });
+    return {
+        sellerId: isLoggedIn ? (query.data ?? null) : null,
+        isLoading: userLoading || (isLoggedIn && query.isPending),
+    };
 }
 
 // 로그인·로그아웃 요청의 401은 "토큰 만료"가 아니므로 전역 만료 처리(QueryProvider)에서 제외한다.
