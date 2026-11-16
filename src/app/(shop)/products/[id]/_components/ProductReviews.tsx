@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
@@ -10,6 +10,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { getSelectSalesPostDetailQueryKey } from '@/api/generated/sales-post-controller/sales-post-controller';
 import { errorMessage, http, type RsData } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { useMySellerId } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import ReviewForm, { Stars } from '../../../_components/ReviewForm';
 
@@ -36,9 +37,24 @@ function fetchReviews(postId: number, page: number): Promise<ReviewPage> {
 
 const reviewUrl = (reviewId: number) => `/api/sales-posts/reviews/${reviewId}`;
 
-// 상품 상세 아래 리뷰 섹션 (별점 요약을 누르면 #reviews로 온다). 내 리뷰는 수정 · 삭제할 수 있다
-export default function ProductReviews({ postId, reviewCount }: { postId: number; reviewCount: number }) {
+const replyUrl = (reviewId: number) => `${reviewUrl(reviewId)}/seller-reply`;
+const REPLY_MAX_LENGTH = 1000; // BE REVIEW_SELLER_REPLY_INVALID_CONTENT: 1~1000자
+
+const jsonInit = (method: string, body: unknown): RequestInit => ({
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+});
+
+type Props = { postId: number; sellerId: number | undefined; reviewCount: number };
+
+// 상품 상세 아래 리뷰 섹션 (별점 요약을 누르면 #reviews로 온다).
+// 내 리뷰는 수정 · 삭제할 수 있고, 이 판매글의 판매자는 리뷰마다 답글 하나를 달고 고치고 지울 수 있다
+export default function ProductReviews({ postId, sellerId, reviewCount }: Props) {
     const queryClient = useQueryClient();
+    // 판매글의 sellerId는 판매자 번호(seller.id)라서 내 판매자 번호와 비교한다 (BE도 로그인 정보의 판매자 번호로 확인)
+    const { sellerId: mySellerId } = useMySellerId();
+    const isPostSeller = mySellerId != null && sellerId != null && mySellerId === sellerId;
     const queryKey = ['sales-post-reviews', postId];
     const query = useInfiniteQuery({
         queryKey,
@@ -61,14 +77,18 @@ export default function ProductReviews({ postId, reviewCount }: { postId: number
     const run = (url: string, init: RequestInit) => change.mutateAsync({ url, init }).then(() => true, () => false);
 
     const editReview = (reviewId: number, rating: number, content: string) =>
-        run(reviewUrl(reviewId), {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rating, content }),
-        });
+        run(reviewUrl(reviewId), jsonInit('PATCH', { rating, content }));
     const deleteReview = (reviewId: number) =>
         window.confirm('리뷰를 삭제할까요? 삭제한 리뷰는 되돌릴 수 없고, 이 상품에 다시 쓸 수 없습니다.')
             ? run(reviewUrl(reviewId), { method: 'DELETE' })
+            : Promise.resolve(false);
+
+    // 판매자 답글: 리뷰마다 하나, 답글 번호 없이 리뷰 번호로 쓰고 · 고치고 · 지운다
+    const writeReply = (reviewId: number, content: string) => run(replyUrl(reviewId), jsonInit('POST', { content }));
+    const editReply = (reviewId: number, content: string) => run(replyUrl(reviewId), jsonInit('PATCH', { content }));
+    const deleteReply = (reviewId: number) =>
+        window.confirm('답글을 삭제할까요? 삭제한 답글은 되돌릴 수 없습니다.')
+            ? run(replyUrl(reviewId), { method: 'DELETE' })
             : Promise.resolve(false);
 
     const reviews = query.data?.pages.flatMap((page) => page.content ?? []) ?? [];
@@ -97,8 +117,12 @@ export default function ProductReviews({ postId, reviewCount }: { postId: number
                                 key={review.reviewId}
                                 review={review}
                                 busy={change.isPending}
+                                isPostSeller={isPostSeller}
                                 onEdit={(rating, content) => editReview(review.reviewId, rating, content)}
                                 onDelete={() => deleteReview(review.reviewId)}
+                                onWriteReply={(content) => writeReply(review.reviewId, content)}
+                                onEditReply={(content) => editReply(review.reviewId, content)}
+                                onDeleteReply={() => deleteReply(review.reviewId)}
                             />
                         ))}
                     </ul>
@@ -122,12 +146,18 @@ export default function ProductReviews({ postId, reviewCount }: { postId: number
 type ReviewItemProps = {
     review: Review;
     busy: boolean;
+    isPostSeller: boolean;
     onEdit: (rating: number, content: string) => Promise<boolean>;
     onDelete: () => Promise<boolean>;
+    onWriteReply: (content: string) => Promise<boolean>;
+    onEditReply: (content: string) => Promise<boolean>;
+    onDeleteReply: () => Promise<boolean>;
 };
 
-function ReviewItem({ review, busy, onEdit, onDelete }: ReviewItemProps) {
+function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply, onEditReply, onDeleteReply }: ReviewItemProps) {
     const [editing, setEditing] = useState(false);
+    // 판매자 답글 입력: 'new' = 새 답글, 'edit' = 답글 수정, null = 닫힘
+    const [replyMode, setReplyMode] = useState<'new' | 'edit' | null>(null);
 
     return (
         <li className="flex flex-col gap-space-sm p-5">
@@ -172,17 +202,123 @@ function ReviewItem({ review, busy, onEdit, onDelete }: ReviewItemProps) {
 
             {review.sellerReply && (
                 <div className="mt-space-xs flex flex-col gap-1 rounded-lg bg-surface-container-low p-space-md">
-                    <div className="flex items-center gap-space-xs">
-                        <Icon name="subdirectory_arrow_right" className="text-[18px] text-on-surface-variant" />
-                        <Text type="supporting" weight="semibold">판매자 답글</Text>
-                        <Text type="supporting" color="secondary">
-                            {formatDateTime(review.sellerReply.repliedAt)}
-                            {review.sellerReply.isEdited && ' · 수정됨'}
-                        </Text>
+                    <div className="flex flex-wrap items-center justify-between gap-space-xs">
+                        <div className="flex items-center gap-space-xs">
+                            <Icon name="subdirectory_arrow_right" className="text-[18px] text-on-surface-variant" />
+                            <Text type="supporting" weight="semibold">판매자 답글</Text>
+                            <Text type="supporting" color="secondary">
+                                {formatDateTime(review.sellerReply.repliedAt)}
+                                {review.sellerReply.isEdited && ' · 수정됨'}
+                            </Text>
+                        </div>
+                        {isPostSeller && replyMode === null && (
+                            <div className="flex gap-space-xs">
+                                <Button label="수정" size="sm" variant="ghost" isDisabled={busy} onClick={() => setReplyMode('edit')} />
+                                <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={() => void onDeleteReply()} />
+                            </div>
+                        )}
                     </div>
-                    <Text type="supporting" className="whitespace-pre-line">{review.sellerReply.content}</Text>
+                    {replyMode === 'edit' ? (
+                        <ReplyForm
+                            initial={review.sellerReply.content}
+                            submitLabel="수정 완료"
+                            disabled={busy}
+                            onSubmit={async (content) => {
+                                const ok = await onEditReply(content);
+                                if (ok) setReplyMode(null);
+                                return ok;
+                            }}
+                            onCancel={() => setReplyMode(null)}
+                        />
+                    ) : (
+                        <Text type="supporting" className="whitespace-pre-line">{review.sellerReply.content}</Text>
+                    )}
                 </div>
             )}
+
+            {/* 답글이 없는 리뷰에는 이 판매글의 판매자에게만 답글 달기를 보여 준다 */}
+            {isPostSeller && !review.sellerReply && (
+                replyMode === 'new' ? (
+                    <div className="mt-space-xs rounded-lg bg-surface-container-low p-space-md">
+                        <ReplyForm
+                            submitLabel="답글 등록"
+                            disabled={busy}
+                            onSubmit={async (content) => {
+                                const ok = await onWriteReply(content);
+                                if (ok) setReplyMode(null);
+                                return ok;
+                            }}
+                            onCancel={() => setReplyMode(null)}
+                        />
+                    </div>
+                ) : (
+                    <div>
+                        <Button
+                            label="답글 달기"
+                            size="sm"
+                            variant="secondary"
+                            icon={<Icon name="reply" />}
+                            isDisabled={busy}
+                            onClick={() => setReplyMode('new')}
+                        />
+                    </div>
+                )
+            )}
         </li>
+    );
+}
+
+const TEXTAREA_CLASS =
+    'w-full p-space-sm bg-surface border border-outline-variant rounded text-on-surface placeholder:text-outline focus:border-primary focus:outline-none resize-y';
+
+// 판매자 답글 입력 (1 ~ 1000자). 빈 글 · 초과는 글씨로, 서버 거절은 부르는 쪽이 alert로 보여 준다
+function ReplyForm({
+    initial = '',
+    submitLabel,
+    disabled,
+    onSubmit,
+    onCancel,
+}: {
+    initial?: string;
+    submitLabel: string;
+    disabled: boolean;
+    onSubmit: (content: string) => Promise<boolean>;
+    onCancel: () => void;
+}) {
+    const [content, setContent] = useState(initial);
+    const [problem, setProblem] = useState<string | null>(null);
+
+    async function submit(event: FormEvent) {
+        event.preventDefault();
+        const trimmed = content.trim();
+        const found =
+            trimmed.length === 0 ? '답글 내용을 입력해 주세요.' : trimmed.length > REPLY_MAX_LENGTH ? `${REPLY_MAX_LENGTH}자까지 쓸 수 있습니다.` : null;
+        setProblem(found);
+        if (found) return;
+        await onSubmit(trimmed);
+    }
+
+    return (
+        <form className="flex flex-col gap-space-xs" onSubmit={submit} noValidate>
+            <textarea
+                className={TEXTAREA_CLASS}
+                rows={3}
+                maxLength={REPLY_MAX_LENGTH}
+                placeholder="구매자에게 답글을 남겨 주세요."
+                value={content}
+                disabled={disabled}
+                onChange={(e) => setContent(e.target.value)}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-space-sm">
+                <Text type="supporting" color="secondary">
+                    {content.trim().length} / {REPLY_MAX_LENGTH}
+                </Text>
+                <div className="flex gap-space-xs">
+                    <Button label="취소" size="sm" variant="ghost" onClick={onCancel} />
+                    <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} />
+                </div>
+            </div>
+            {problem && <Text className="text-error text-caption">{problem}</Text>}
+        </form>
     );
 }

@@ -175,7 +175,7 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                     </Card>
                 )}
             </section>
-            {post.id != null && <ProductReviews postId={post.id} reviewCount={post.reviewCount ?? 0} />}
+            {post.id != null && <ProductReviews postId={post.id} sellerId={post.sellerId} reviewCount={post.reviewCount ?? 0} />}
             {post.id != null && <ProductComments postId={post.id} sellerId={post.sellerId} />}
         </div>
     );
