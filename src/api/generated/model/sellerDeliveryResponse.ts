@@ -5,6 +5,7 @@
  * OpenAPI spec version: v0
  */
 import type { DeliveryDetailItemResponse } from './deliveryDetailItemResponse';
+import type { SellerDeliveryResponseCancelReason } from './sellerDeliveryResponseCancelReason';
 import type { SellerDeliveryResponsePurchaseType } from './sellerDeliveryResponsePurchaseType';
 import type { SellerDeliveryResponseStatus } from './sellerDeliveryResponseStatus';
 
@@ -23,4 +24,6 @@ export interface SellerDeliveryResponse {
   carrier?: string;
   trackingNumber?: string;
   items?: DeliveryDetailItemResponse[];
+  canceledAt?: string;
+  cancelReason?: SellerDeliveryResponseCancelReason;
 }
