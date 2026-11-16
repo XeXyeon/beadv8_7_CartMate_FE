@@ -15,7 +15,7 @@ import { useSelectSalesPostDetail } from '@/api/generated/sales-post-controller/
 import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
-import { toProductOption } from '@/lib/salesPost';
+import { findInventory, toProductOption } from '@/lib/salesPost';
 import { SellerTrustPanel, toSellerTrust } from '../../../_components/SellerTrust';
 import ProductActions from './ProductActions';
 import ProductOptions from './ProductOptions';
@@ -54,6 +54,8 @@ export default function ProductDetail() {
 
 function DetailContent({ post }: { post: PostWithReviews }) {
     const [selectedId, setSelectedId] = useState<number | null>(null);
+    // 고른 상품옵션: 옵션 종류(typeId) → 상품옵션(optionId). 상품을 바꾸면 비운다
+    const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({});
     const [quantity, setQuantity] = useState(1);
     const [imageIndex, setImageIndex] = useState(0);
 
@@ -62,6 +64,27 @@ function DetailContent({ post }: { post: PostWithReviews }) {
     // 처음에는 판매 중인 첫 상품을 고른 상태로 보여 준다. 고른 상품이 다시 불러온 뒤 판매 중지가 됐으면 첫 판매 중 상품으로 돌린다.
     const selectable = products.filter((p) => p.onSale);
     const currentId = selectable.find((p) => p.id === selectedId)?.id ?? selectable[0]?.id ?? null;
+    const currentProduct = products.find((p) => p.id === currentId) ?? null;
+    // 고른 상품 · 옵션 조합의 재고. 장바구니에는 이 inventoryId를 담는다
+    const inventory = currentProduct ? findInventory(currentProduct, selectedOptions) : null;
+    // 수량은 그 재고의 구매 가능 수량을 넘지 않게 (옵션을 바꿔 남은 수량이 줄어도 맞춘다)
+    const shownQuantity = inventory ? Math.max(1, Math.min(quantity, inventory.available)) : 1;
+
+    function selectProduct(productId: number) {
+        setSelectedId(productId);
+        setSelectedOptions({});
+        setQuantity(1);
+    }
+
+    function selectOption(typeId: number, optionId: number | null) {
+        setSelectedOptions((prev) => {
+            const next = { ...prev };
+            if (optionId == null) delete next[typeId];
+            else next[typeId] = optionId;
+            return next;
+        });
+        setQuantity(1);
+    }
     const images = products.flatMap((p) => p.imageUrls);
     const mainImage = images[Math.min(imageIndex, images.length - 1)];
 
@@ -112,15 +135,25 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                         <ProductOptions
                             products={products}
                             selectedId={currentId}
-                            quantity={quantity}
+                            selectedOptions={selectedOptions}
+                            inventory={inventory}
+                            quantity={shownQuantity}
                             disabled={!onSale}
-                            onSelect={setSelectedId}
+                            onSelect={selectProduct}
+                            onOptionChange={selectOption}
                             onQuantityChange={setQuantity}
                         />
                     )}
                     {currentId !== null && <ProductPaybackConditions key={currentId} productId={currentId} />}
                     <SellerTrustPanel sellerId={post.sellerId} fallback={toSellerTrust(post.sellerTrustLevel, post.sellerTrustScore)} />
-                    <ProductActions postId={post.id ?? 0} productId={currentId} quantity={quantity} onSale={onSale} />
+                    <ProductActions
+                        postId={post.id ?? 0}
+                        inventoryId={inventory?.inventoryId ?? null}
+                        available={inventory?.available ?? 0}
+                        needsOption={currentProduct != null && currentProduct.optionGroups.length > 0 && inventory == null}
+                        quantity={shownQuantity}
+                        onSale={onSale}
+                    />
                 </div>
             </div>
             <section className="mt-6 flex w-full flex-col gap-5 border-t border-outline-variant pt-10" aria-labelledby="product-information">

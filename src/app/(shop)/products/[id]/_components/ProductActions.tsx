@@ -13,16 +13,17 @@ import { ROUTES } from '@/lib/routes';
 
 type Props = {
     postId: number;
-    productId: number | null;
+    inventoryId: number | null; // 고른 상품 · 옵션 조합의 재고. 아직 다 고르지 않았으면 null
+    available: number; // 그 재고의 구매 가능 수량
+    needsOption: boolean; // 옵션을 아직 다 고르지 않음
     quantity: number;
     onSale: boolean;
 };
 
 // 상품 상세의 구매 버튼 영역.
-// - 장바구니 담기: BE는 inventoryId 를 받지만 "상품 1개 = 재고 단위 1개"로 정해져 있어 상품 id 를 그대로 넣는다.
-//   (BE 상품 조회 연동 전이라 실제 상품 id 는 BE에서 "존재하지 않는 상품 옵션"으로 거절된다)
+// - 장바구니 담기: 고른 상품 · 옵션 조합의 재고(inventoryId)를 담는다. 옵션을 다 고르지 않았거나 품절이면 막는다
 // - 바로 구매: 주문서 연동(ORD-1) 전이라 비활성
-export default function ProductActions({ postId, productId, quantity, onSale }: Props) {
+export default function ProductActions({ postId, inventoryId, available, needsOption, quantity, onSale }: Props) {
     const router = useRouter();
     const queryClient = useQueryClient();
     const { isLoggedIn } = useCurrentUser();
@@ -33,20 +34,21 @@ export default function ProductActions({ postId, productId, quantity, onSale }: 
         },
     });
 
-    const canBuy = onSale && productId !== null;
-    // 결과 메시지는 지금 고른 상품·수량으로 담았을 때만 보여 준다. (다른 상품을 고르면 이전 결과를 숨긴다)
+    const soldOut = inventoryId !== null && available <= 0;
+    const canBuy = onSale && inventoryId !== null && !soldOut;
+    // 결과 메시지는 지금 고른 재고 · 수량으로 담았을 때만 보여 준다. (다른 옵션을 고르면 이전 결과를 숨긴다)
     const sent = addToCart.variables?.data;
-    const isCurrent = sent?.inventoryId === productId && sent?.quantity === quantity;
+    const isCurrent = sent?.inventoryId === inventoryId && sent?.quantity === quantity;
     // 401은 전역 만료 처리가 로그인 화면으로 보내므로 따로 표시하지 않는다.
     const showError = addToCart.isError && isCurrent && !(addToCart.error instanceof ApiError && addToCart.error.status === 401);
 
     const handleAddToCart = () => {
-        if (productId === null) return;
+        if (inventoryId === null) return;
         if (!isLoggedIn) {
             router.push(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.product(postId))}`);
             return;
         }
-        addToCart.mutate({ data: { inventoryId: productId, quantity } });
+        addToCart.mutate({ data: { inventoryId, quantity } });
     };
 
     return (
@@ -79,6 +81,8 @@ export default function ProductActions({ postId, productId, quantity, onSale }: 
                 </p>
             )}
             {!onSale && <Text type="supporting" color="secondary">현재 판매하지 않는 상품은 구매할 수 없습니다.</Text>}
+            {onSale && needsOption && <Text type="supporting" color="secondary">옵션을 모두 고르면 장바구니에 담을 수 있습니다.</Text>}
+            {onSale && soldOut && <Text type="supporting" className="text-error">품절된 옵션입니다. 다른 옵션을 골라 주세요.</Text>}
         </div>
     );
 }
