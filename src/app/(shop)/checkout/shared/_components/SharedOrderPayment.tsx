@@ -4,12 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { Card as AstryxCard } from '@astryxdesign/core/Card';
 import { Heading as AstryxHeading } from '@astryxdesign/core/Heading';
 import { useProfile } from '@/api/generated/member-controller/member-controller';
 import type { MemberProfileResponse, ParticipantResponse, SharedGroupOrderDetailResponse, TeamDeliveryAddress } from '@/api/generated/model';
-import { getGetBySharedGroupOrderQueryKey } from '@/api/generated/payment-controller/payment-controller';
+import { getGetBySharedGroupOrderQueryKey, useGetBySharedGroupOrder } from '@/api/generated/payment-controller/payment-controller';
 import {
     getGetDetail3QueryKey,
     getGetMyList3QueryKey,
@@ -23,17 +24,11 @@ import {
 } from '@/api/generated/wallet-controller/wallet-controller';
 import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { buyerCancelLabel, partialCancelTitle, SHARED_ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
 import { formatDateTime, formatPhone, parseKst } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
 import Notice from '../../_components/Notice';
-
-const CANCEL_REASON_LABEL: Record<string, string> = {
-    DEADLINE_EXPIRED: '결제 기한 안에 모든 참여자가 결제하지 않아 취소되었습니다.',
-    CREATOR_CANCELED: '만든 사람이 공동구매를 취소했습니다.',
-    OUT_OF_STOCK: '재고가 부족해 취소되었습니다.',
-    SALES_STOPPED: '판매자가 판매를 중지해 공동 주문이 취소되었습니다.', 
-};
 
 // 공동 주문(?order=공동주문id)을 상태별로 보여 준다.
 // 결과 화면을 따로 두지 않고 상태로 나누므로 새로고침·뒤로 가기를 해도 지금 상태가 그대로 보인다.
@@ -240,6 +235,7 @@ function SharedConfirmed({ order }: { order: SharedGroupOrderDetailResponse }) {
                 <dt className="text-secondary">내 분담금</dt>
                 <dd className="text-on-surface font-semibold">{formatPrice(order.myShareAmount ?? 0)}</dd>
             </OrderSummary>
+            <SharedPartialCancel order={order} />
             {order.teamDeliveryAddress && (
                 <p className="font-body-sm text-body-sm text-on-surface">
                     배송지: ({order.teamDeliveryAddress.zipCode}) {order.teamDeliveryAddress.address} {order.teamDeliveryAddress.addressDetail ?? ''} ·{' '}
@@ -258,12 +254,12 @@ function SharedCanceled({ order }: { order: SharedGroupOrderDetailResponse }) {
         <StatusCard>
             <StatusHeading icon="cancel" title="취소된 공동 주문입니다" muted />
             <p className="font-body-sm text-body-sm text-secondary">
-                {CANCEL_REASON_LABEL[order.cancelReason ?? ''] ?? '공동 주문이 취소되었습니다.'}
+                {SHARED_ORDER_CANCEL_MESSAGE[order.cancelReason ?? ''] ?? '공동 주문이 취소되었습니다.'}
             </p>
             {iPaid && (
                 <div className="p-space-sm bg-surface-container-low border border-outline-variant font-body-sm text-body-sm flex items-center gap-space-xs">
                     <Icon name="undo" className="text-[18px] text-primary" />
-                    결제한 분담금 {formatPrice(order.myShareAmount ?? 0)}은 예치금으로 자동 환불되었습니다.
+                    <SharedRefundText orderId={order.id ?? 0} fallback={order.myShareAmount ?? 0} />
                     <Link className="ml-auto underline font-semibold text-primary" href={ROUTES.depositHistory}>
                         예치금 내역
                     </Link>
@@ -272,6 +268,51 @@ function SharedCanceled({ order }: { order: SharedGroupOrderDetailResponse }) {
             <BackToGroupPurchase order={order} />
         </StatusCard>
     );
+}
+
+// 판매자 사유 취소·판매글 내림으로 일부 상품만 취소된 확정 주문. 상품 목록이 없는 화면이라 안내 박스 하나로 알린다.
+function SharedPartialCancel({ order }: { order: SharedGroupOrderDetailResponse }) {
+    const canceled = (order.items ?? []).filter((item) => item.canceledAt);
+    const iPaid = order.myPaymentStatus === 'PAID';
+    const payment = useGetBySharedGroupOrder(order.id ?? 0, { query: { enabled: canceled.length > 0 && iPaid } });
+    if (canceled.length === 0) return null;
+    const refunded = payment.data?.data?.refundedAmount ?? 0;
+
+    const refundText = payment.isPending
+        ? '환불 금액을 확인하고 있습니다.'
+        : refunded > 0
+          ? `내 분담금 중 ${formatPrice(refunded)}이 예치금으로 환불되었습니다.`
+          : '내 분담금 중 취소된 몫은 곧 예치금으로 환불됩니다.';
+
+    return (
+        <Banner
+            status="info"
+            collapsible={false}
+            title={partialCancelTitle(canceled.map((item) => item.cancelReason))}
+            description={
+                <span className="flex flex-col">
+                    {canceled.map((item) => (
+                        <span key={item.itemId}>
+                            {item.productName}
+                            {buyerCancelLabel(item.cancelReason) && ` · ${buyerCancelLabel(item.cancelReason)}`}
+                        </span>
+                    ))}
+                    {iPaid && <span data-refunded-amount={refunded}>{refundText}</span>}
+                </span>
+            }
+            endContent={iPaid && refunded > 0 ? <Button label="예치금 내역" variant="ghost" size="sm" href={ROUTES.depositHistory} /> : undefined}
+        />
+    );
+}
+
+// 전체 취소 환불 금액. 앞서 판매자 몫이 따로 환불됐으면 분담금 전부가 아니므로, 결제 서버가 실제로 돌려준 금액을 쓴다.
+function SharedRefundText({ orderId, fallback }: { orderId: number; fallback: number }) {
+    const payment = useGetBySharedGroupOrder(orderId);
+    const refunded = payment.data?.data?.refundedAmount;
+    if (payment.isPending) return <>환불 금액을 확인하고 있습니다.</>;
+    if (refunded === undefined) return <>결제한 분담금 {formatPrice(fallback)}은 예치금으로 환불됩니다.</>;
+    if (refunded === 0) return <>결제한 분담금은 곧 예치금으로 환불됩니다.</>;
+    return <span data-refunded-amount={refunded}>결제한 분담금 중 {formatPrice(refunded)}이 예치금으로 환불되었습니다.</span>;
 }
 
 // ===== 공통 조각 =====

@@ -13,4 +13,5 @@ export const SharedGroupOrderDetailResponseCancelReason = {
   OUT_OF_STOCK: 'OUT_OF_STOCK',
   CREATOR_CANCELED: 'CREATOR_CANCELED',
   SALES_STOPPED: 'SALES_STOPPED',
+  SELLER_CANCELED: 'SELLER_CANCELED',
 } as const;

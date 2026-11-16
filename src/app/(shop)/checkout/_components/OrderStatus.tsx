@@ -16,18 +16,12 @@ import {
 } from '@/api/generated/wallet-controller/wallet-controller';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
 import { formatDateTime } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
 import Notice from './Notice';
 import WalletPaymentSummary, { payErrorMessage } from './WalletPaymentSummary';
-
-const CANCEL_REASON_LABEL: Record<string, string> = {
-    BUYER_CANCELED: '주문을 취소했습니다.',
-    PAYMENT_EXPIRED: '결제 기한이 지나 자동으로 취소되었습니다.',
-    OUT_OF_STOCK: '재고가 부족해 취소되었습니다.',
-    SALES_STOPPED: '판매자가 판매를 중지해 주문이 취소되었습니다.',
-};
 
 // 접수된 주문(?order=주문id)을 상태별로 보여 준다. 결제 대기면 예치금 결제, 결제 완료면 결제 결과 화면이 된다.
 // 결과 화면을 따로 두지 않고 주문 상태로 나누므로 새로고침·뒤로 가기를 해도 지금 상태가 그대로 보인다.
@@ -38,7 +32,8 @@ export default function OrderStatus({ orderId }: { orderId: number }) {
     if (query.isPending) return <div className="h-64 bg-surface-container-low animate-pulse" aria-hidden />;
     if (!order) return <Notice message={errorMessage(query.error, '주문 정보를 불러오지 못했습니다.')} />;
 
-    if (order.status === 'PAID') return <OrderPaid order={order} />;
+    // 취소 요청 중인 주문도 이미 결제가 끝났다. 결제 화면을 다시 보여 주지 않는다.
+    if (order.status === 'PAID' || order.status === 'CANCEL_REQUESTED') return <OrderPaid order={order} />;
     if (order.status === 'CANCELED') return <OrderCanceled order={order} />;
     return <OrderPayment orderId={orderId} order={order} />;
 }
@@ -218,7 +213,7 @@ function OrderCanceled({ order }: { order: OrderDetailResponse }) {
                 <dd className="text-on-surface">{formatDateTime(order.canceledAt)}</dd>
             </OrderSummary>
             {order.cancelReason && (
-                <p className="font-body-sm text-body-sm text-secondary">{CANCEL_REASON_LABEL[order.cancelReason] ?? '취소된 주문입니다.'}</p>
+                <p className="font-body-sm text-body-sm text-secondary">{ORDER_CANCEL_MESSAGE[order.cancelReason] ?? '취소된 주문입니다.'}</p>
             )}
             {/* 결제한 뒤 취소된 주문이면 환불 안내 (결제 전 취소는 나간 돈이 없음) */}
             {order.paidAt && (

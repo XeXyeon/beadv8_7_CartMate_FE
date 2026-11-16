@@ -23,12 +23,25 @@ export const TAB_KINDS: Record<OrderTab, readonly OrderKind[]> = {
 
 export type StatusTone = 'pending' | 'done' | 'muted';
 
-// 개인 주문 상태 (PAYMENT_PENDING · PAID · CANCELED)
+// 개인 주문 상태 (PAYMENT_PENDING · PAID · CANCEL_REQUESTED · CANCELED)
 export const ORDER_STATUS: Record<string, { label: string; tone: StatusTone }> = {
     PAYMENT_PENDING: { label: '결제 대기', tone: 'pending' },
     PAID: { label: '결제 완료', tone: 'done' },
+    CANCEL_REQUESTED: { label: '취소 요청 중', tone: 'pending' },
     CANCELED: { label: '주문 취소', tone: 'muted' },
 };
+
+// 결제 완료 주문 취소를 배송 서버가 거절한 이유. BE가 배송 오류 코드를 그대로 넘긴다(앞에 상태 코드가 붙을 수 있다).
+const CANCEL_REJECT_MESSAGE: Record<string, string> = {
+    DELIVERY_NOT_CANCELABLE: '판매자가 이미 배송을 확인해 취소할 수 없습니다. 상품을 받은 뒤 교환 · 환불 요청으로 진행해 주세요.',
+    DELIVERY_CANCEL_DELAYED: '취소 요청이 처리되기 전에 상품이 발송되었습니다. 상품을 받은 뒤 교환 · 환불 요청으로 진행해 주세요.',
+};
+
+export function cancelRejectMessage(code: string | undefined): string | null {
+    if (!code) return null;
+    const key = Object.keys(CANCEL_REJECT_MESSAGE).find((name) => code.endsWith(name));
+    return key ? CANCEL_REJECT_MESSAGE[key] : '판매자 확인 결과 주문을 취소할 수 없습니다.';
+}
 
 // 공동 주문 상태 (PAYING · CONFIRMED · CANCELED)
 const SHARED_STATUS: Record<string, { label: string; tone: StatusTone }> = {
@@ -41,12 +54,6 @@ export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
     pending: 'bg-primary text-on-primary',
     done: 'border border-primary text-primary bg-surface-container-lowest',
     muted: 'border border-outline-variant text-outline bg-surface',
-};
-
-export const CANCEL_REASON_LABEL: Record<string, string> = {
-    BUYER_CANCELED: '구매자가 주문을 취소했습니다.',
-    PAYMENT_EXPIRED: '결제 기한이 지나 자동으로 취소되었습니다.',
-    OUT_OF_STOCK: '재고가 부족해 취소되었습니다.',
 };
 
 export type OrderRow = {

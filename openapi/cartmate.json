@@ -4839,6 +4839,47 @@
           }
         }
       }
+    },
+    "/api/deliveries/{deliveryId}/cancel": {
+      "patch": {
+        "tags": [
+          "delivery-controller"
+        ],
+        "operationId": "cancelDelivery",
+        "parameters": [
+          {
+            "name": "deliveryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliverySellerCancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataDeliveryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9311,6 +9352,16 @@
             "items": {
               "$ref": "#/components/schemas/DeliveryDetailItemResponse"
             }
+          },
+          "cancelReason": {
+            "type": "string",
+            "enum": [
+              "BUYER_CANCELED",
+              "SALES_STOPPED",
+              "SELLER_OUT_OF_STOCK",
+              "SELLER_PRODUCT_ISSUE",
+              "SELLER_OTHER"
+            ]
           }
         }
       },
@@ -9458,6 +9509,20 @@
             "items": {
               "$ref": "#/components/schemas/DeliveryDetailItemResponse"
             }
+          },
+          "canceledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelReason": {
+            "type": "string",
+            "enum": [
+              "BUYER_CANCELED",
+              "SALES_STOPPED",
+              "SELLER_OUT_OF_STOCK",
+              "SELLER_PRODUCT_ISSUE",
+              "SELLER_OTHER"
+            ]
           }
         }
       },
@@ -10563,6 +10628,17 @@
             "type": "string",
             "format": "date-time",
             "description": "취소된 항목이면 취소 시각 (판매글 내림으로 인한 취소). 주문 전체 취소는 주문의 canceledAt을 본다"
+          },
+          "cancelReason": {
+            "type": "string",
+            "description": "취소된 항목이면 취소 사유 (판매 중지, 품절·재고 부족 같은 판매자 사유). 이 칸이 생기기 전에 취소된 항목은 null",
+            "enum": [
+              "BUYER_CANCELED",
+              "SALES_STOPPED",
+              "SELLER_OUT_OF_STOCK",
+              "SELLER_PRODUCT_ISSUE",
+              "SELLER_OTHER"
+            ]
           }
         }
       },
@@ -10603,7 +10679,8 @@
               "PAYMENT_EXPIRED",
               "OUT_OF_STOCK",
               "SALES_STOPPED",
-              "GROUP_PURCHASE_CLOSED"
+              "GROUP_PURCHASE_CLOSED",
+              "SELLER_CANCELED"
             ]
           },
           "cancelRejectCode": {
@@ -11236,6 +11313,17 @@
             "type": "string",
             "format": "date-time",
             "description": "취소된 항목이면 취소 시각 (판매글 내림으로 인한 취소). 공동구매 전체 취소는 주문의 canceledAt을 본다"
+          },
+          "cancelReason": {
+            "type": "string",
+            "description": "취소된 항목이면 취소 사유 (판매 중지, 품절·재고 부족 같은 판매자 사유). 이 칸이 생기기 전에 취소된 항목은 null",
+            "enum": [
+              "BUYER_CANCELED",
+              "SALES_STOPPED",
+              "SELLER_OUT_OF_STOCK",
+              "SELLER_PRODUCT_ISSUE",
+              "SELLER_OTHER"
+            ]
           }
         }
       },
@@ -11264,7 +11352,8 @@
               "DEADLINE_EXPIRED",
               "OUT_OF_STOCK",
               "CREATOR_CANCELED",
-              "SALES_STOPPED"
+              "SALES_STOPPED",
+              "SELLER_CANCELED"
             ]
           },
           "creator": {
@@ -11634,6 +11723,24 @@
             "format": "int32"
           }
         }
+      },
+      "DeliverySellerCancelRequest": {
+        "type": "object",
+        "properties": {
+          "cancelReason": {
+            "type": "string",
+            "enum": [
+              "BUYER_CANCELED",
+              "SALES_STOPPED",
+              "SELLER_OUT_OF_STOCK",
+              "SELLER_PRODUCT_ISSUE",
+              "SELLER_OTHER"
+            ]
+          }
+        },
+        "required": [
+          "cancelReason"
+        ]
       }
     }
   }

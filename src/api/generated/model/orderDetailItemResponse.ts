@@ -4,6 +4,7 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { OrderDetailItemResponseCancelReason } from './orderDetailItemResponseCancelReason';
 
 export interface OrderDetailItemResponse {
   itemId?: number;
@@ -16,4 +17,6 @@ export interface OrderDetailItemResponse {
   amount?: number;
   /** 취소된 항목이면 취소 시각 (판매글 내림으로 인한 취소). 주문 전체 취소는 주문의 canceledAt을 본다 */
   canceledAt?: string;
+  /** 취소된 항목이면 취소 사유 (판매 중지, 품절·재고 부족 같은 판매자 사유). 이 칸이 생기기 전에 취소된 항목은 null */
+  cancelReason?: OrderDetailItemResponseCancelReason;
 }
