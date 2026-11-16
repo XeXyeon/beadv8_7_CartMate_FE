@@ -43,12 +43,6 @@ export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
     muted: 'border border-outline-variant text-outline bg-surface',
 };
 
-export const CANCEL_REASON_LABEL: Record<string, string> = {
-    BUYER_CANCELED: '구매자가 주문을 취소했습니다.',
-    PAYMENT_EXPIRED: '결제 기한이 지나 자동으로 취소되었습니다.',
-    OUT_OF_STOCK: '재고가 부족해 취소되었습니다.',
-};
-
 export type OrderRow = {
     key: string;
     kind: OrderKind;

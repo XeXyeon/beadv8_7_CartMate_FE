@@ -10,10 +10,11 @@ import { getGetDetailQueryKey, getGetMyListQueryKey, useCancel, useGetDetail } f
 import { getPreviewQueryKey } from '@/api/generated/order-controller/order-controller';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
 import { formatDateTime, parseKst } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
-import { CANCEL_REASON_LABEL, errorStatus, hasCode, KIND_LABEL, ORDER_STATUS } from '../../_lib/orderView';
+import { errorStatus, hasCode, KIND_LABEL, ORDER_STATUS } from '../../_lib/orderView';
 import OrderDeliveries, { summarizeDeliveries, useOrderDeliveries } from './OrderDeliveries';
 
 const CARD = 'bg-surface-container-lowest border border-outline-variant rounded p-space-md';
@@ -223,7 +224,7 @@ function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orde
                 <Icon name="cancel" className="text-[22px] text-outline mt-0.5" />
                 <div className="font-body-sm text-body-sm">
                     <div className="font-bold text-on-surface">취소된 주문입니다 · {formatDateTime(order.canceledAt)}</div>
-                    <p className="text-on-surface-variant mt-0.5">{CANCEL_REASON_LABEL[order.cancelReason ?? ''] ?? '주문이 취소되었습니다.'}</p>
+                    <p className="text-on-surface-variant mt-0.5">{ORDER_CANCEL_MESSAGE[order.cancelReason ?? ''] ?? '주문이 취소되었습니다.'}</p>
                 </div>
             </Card>
         );

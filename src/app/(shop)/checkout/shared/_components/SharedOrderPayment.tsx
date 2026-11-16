@@ -23,17 +23,11 @@ import {
 } from '@/api/generated/wallet-controller/wallet-controller';
 import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { SHARED_ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
 import { formatDateTime, formatPhone, parseKst } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
 import Notice from '../../_components/Notice';
-
-const CANCEL_REASON_LABEL: Record<string, string> = {
-    DEADLINE_EXPIRED: '결제 기한 안에 모든 참여자가 결제하지 않아 취소되었습니다.',
-    CREATOR_CANCELED: '만든 사람이 공동구매를 취소했습니다.',
-    OUT_OF_STOCK: '재고가 부족해 취소되었습니다.',
-    SALES_STOPPED: '판매자가 판매를 중지해 공동 주문이 취소되었습니다.', 
-};
 
 // 공동 주문(?order=공동주문id)을 상태별로 보여 준다.
 // 결과 화면을 따로 두지 않고 상태로 나누므로 새로고침·뒤로 가기를 해도 지금 상태가 그대로 보인다.
@@ -258,7 +252,7 @@ function SharedCanceled({ order }: { order: SharedGroupOrderDetailResponse }) {
         <StatusCard>
             <StatusHeading icon="cancel" title="취소된 공동 주문입니다" muted />
             <p className="font-body-sm text-body-sm text-secondary">
-                {CANCEL_REASON_LABEL[order.cancelReason ?? ''] ?? '공동 주문이 취소되었습니다.'}
+                {SHARED_ORDER_CANCEL_MESSAGE[order.cancelReason ?? ''] ?? '공동 주문이 취소되었습니다.'}
             </p>
             {iPaid && (
                 <div className="p-space-sm bg-surface-container-low border border-outline-variant font-body-sm text-body-sm flex items-center gap-space-xs">
