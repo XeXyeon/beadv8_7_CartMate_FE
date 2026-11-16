@@ -20,6 +20,7 @@ import { SellerTrustPanel, toSellerTrust } from '../../../_components/SellerTrus
 import ProductActions from './ProductActions';
 import ProductOptions from './ProductOptions';
 import ProductPaybackConditions from './ProductPaybackConditions';
+import ProductComments from './ProductComments';
 import ProductReviews from './ProductReviews';
 
 // 판매글 응답의 리뷰 집계. 생성 타입(orval)에 아직 없어 BE 응답(SelectSalesPostResponse)에 맞춰 덧붙인다.
@@ -175,6 +176,7 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                 )}
             </section>
             {post.id != null && <ProductReviews postId={post.id} reviewCount={post.reviewCount ?? 0} />}
+            {post.id != null && <ProductComments postId={post.id} sellerId={post.sellerId} />}
         </div>
     );
 }
