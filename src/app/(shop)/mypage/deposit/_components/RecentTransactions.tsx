@@ -54,11 +54,11 @@ export default function RecentTransactions() {
                     <table className="w-full text-left font-body-sm text-body-sm">
                         <thead>
                             <tr className="bg-surface-container-low text-secondary font-label-sm text-label-sm">
-                                <th className="py-space-sm px-space-md w-44">거래 일시</th>
-                                <th className="py-space-sm px-space-md w-28">거래 유형</th>
-                                <th className="py-space-sm px-space-md">상세 내용</th>
-                                <th className="py-space-sm px-space-md text-right w-40">금액</th>
-                                <th className="py-space-sm px-space-md text-right w-44">거래 후 잔액</th>
+                                <th className="py-space-sm px-space-md whitespace-nowrap">거래 일시</th>
+                                <th className="py-space-sm px-space-md whitespace-nowrap">거래 유형</th>
+                                <th className="py-space-sm px-space-md min-w-[140px] whitespace-nowrap">상세 내용</th>
+                                <th className="py-space-sm px-space-md text-right whitespace-nowrap">금액</th>
+                                <th className="py-space-sm px-space-md text-right whitespace-nowrap">거래 후 잔액</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y-0 text-on-surface">
@@ -66,8 +66,8 @@ export default function RecentTransactions() {
                                 const info = transactionTypeInfo(tx.transactionType);
                                 return (
                                     <tr key={tx.transactionId} className={`hover:bg-surface-container-low/50 transition-colors ${index % 2 === 1 ? 'bg-surface-container-lowest' : ''}`}>
-                                        <td className="py-space-md px-space-md text-secondary font-mono text-body-sm">{formatDateTime(tx.createdAt)}</td>
-                                        <td className="py-space-md px-space-md">
+                                        <td className="py-space-md px-space-md text-secondary font-mono text-body-sm whitespace-nowrap">{formatDateTime(tx.createdAt)}</td>
+                                        <td className="py-space-md px-space-md whitespace-nowrap">
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded font-caption text-caption font-bold ${info.badgeClassName}`}>{info.label}</span>
                                         </td>
                                         <td className="py-space-md px-space-md">
@@ -75,10 +75,10 @@ export default function RecentTransactions() {
                                             {/* 거래 내역에는 상품명이 없어 주문 번호만 보여 준다. */}
                                             {tx.orderId != null && <div className="font-caption text-caption text-secondary">주문 #{tx.orderId}</div>}
                                         </td>
-                                        <td className={`py-space-md px-space-md text-right font-mono font-bold ${info.amountClassName}`}>
+                                        <td className={`py-space-md px-space-md text-right font-mono font-bold whitespace-nowrap ${info.amountClassName}`}>
                                             {tx.amount == null ? '-' : `${info.sign}${tx.amount.toLocaleString('ko-KR')}원`}
                                         </td>
-                                        <td className="py-space-md px-space-md text-right font-mono font-bold text-on-surface">{tx.balanceAfter == null ? '-' : `${tx.balanceAfter.toLocaleString('ko-KR')}원`}</td>
+                                        <td className="py-space-md px-space-md text-right font-mono font-bold text-on-surface whitespace-nowrap">{tx.balanceAfter == null ? '-' : `${tx.balanceAfter.toLocaleString('ko-KR')}원`}</td>
                                     </tr>
                                 );
                             })}

@@ -23,8 +23,8 @@ export const CLAIM_REASON_LABEL: Record<string, string> = {
 export const CLAIM_STATUS: Record<string, { label: string; className: string }> = {
     VERIFYING: { label: '접수 확인 중', className: 'bg-primary text-on-primary' },
     NOT_ACCEPTED: { label: '접수 불가', className: 'border border-outline-variant text-outline bg-surface' },
-    REQUESTED: { label: '접수됨 · 판매자 확인 중', className: 'bg-primary text-on-primary' },
-    APPROVED: { label: '승인됨 · 처리 중', className: 'border border-primary text-primary bg-surface-container-lowest' },
+    REQUESTED: { label: '판매자 확인 중', className: 'bg-primary text-on-primary' },
+    APPROVED: { label: '처리 중', className: 'border border-primary text-primary bg-surface-container-lowest' },
     COMPLETED: { label: '처리 완료', className: 'bg-surface-container-high text-on-surface' },
     REJECTED: { label: '거절됨', className: 'border border-outline-variant text-outline bg-surface' },
 };

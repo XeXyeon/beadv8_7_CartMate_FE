@@ -24,7 +24,7 @@ export default function SummaryBar() {
                 <Heading level={2}>전체 기간 요약</Heading>
                 <Badge label="전체 기간" variant="neutral" />
             </div>
-            <div className="grid grid-cols-1 gap-space-md md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-space-md lg:grid-cols-3">
                 <div className={`flex items-center justify-between gap-space-md md:px-space-md ${BOX_BORDER}`}>
                     <Text as="span" color="secondary" className="flex items-center gap-space-xs">
                         <span className="w-2 h-2 inline-block bg-primary" />총 충전
