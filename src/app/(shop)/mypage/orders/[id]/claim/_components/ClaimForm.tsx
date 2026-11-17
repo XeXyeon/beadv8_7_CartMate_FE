@@ -42,8 +42,9 @@ type Props = {
 };
 
 // 배송이 하나뿐이고 신청할 수 있으면 그 배송의 신청 가능한 상품을 전체 수량으로 미리 골라 둔다.
-// 아직 신청할 수 있는 수량 = 받은 수량 - 이미 환불된 수량
+// 아직 신청할 수 있는 수량 = 받은 수량 - 이미 환불된 수량. 배송 전에 취소된 상품은 받지 않았으므로 0이다(BE도 거절한다).
 function remainingOf(item: DeliveryDetailItemResponse, refundedQty: Map<number, number>): number {
+    if (item.canceledAt) return 0;
     return Math.max(0, (item.quantity ?? 0) - (refundedQty.get(item.deliveryItemId ?? 0) ?? 0));
 }
 
@@ -217,8 +218,9 @@ export default function ClaimForm({ order, orderId, deliveries, blockedItemIds, 
                                                             {item.quantity ?? 0}개 받음
                                                         </div>
                                                         {blocked && <div className="font-caption text-caption text-primary font-bold mt-0.5">처리 중인 교환 · 환불 요청이 있습니다</div>}
+                                                        {item.canceledAt && <div className="font-caption text-caption text-outline font-bold mt-0.5">배송 전에 취소된 상품입니다</div>}
                                                         {!blocked && refundedAll && <div className="font-caption text-caption text-outline font-bold mt-0.5">환불 완료된 상품입니다</div>}
-                                                        {!blocked && !refundedAll && remaining < (item.quantity ?? 0) && (
+                                                        {!blocked && !item.canceledAt && !refundedAll && remaining < (item.quantity ?? 0) && (
                                                             <div className="font-caption text-caption text-outline mt-0.5">{(item.quantity ?? 0) - remaining}개 환불 완료 · {remaining}개 신청 가능</div>
                                                         )}
                                                     </div>

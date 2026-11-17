@@ -17,7 +17,6 @@ export interface OrderDetailResponse {
   individualGroupPurchaseId?: number;
   status?: OrderDetailResponseStatus;
   cancelReason?: OrderDetailResponseCancelReason;
-  cancelRejectCode?: string;
   totalAmount?: number;
   paymentDeadlineAt?: string;
   paidAt?: string;

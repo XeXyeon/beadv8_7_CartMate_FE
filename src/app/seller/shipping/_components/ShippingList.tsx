@@ -39,8 +39,9 @@ function readPage(raw: string | null): number {
     return Number.isInteger(page) && page >= 1 ? page : 1;
 }
 
+// 취소된 상품은 보내지 않으므로 수량에서 뺀다.
 function totalQuantity(delivery: SellerDeliveryResponse): number {
-    return (delivery.items ?? []).reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+    return (delivery.items ?? []).filter((item) => !item.canceledAt).reduce((sum, item) => sum + (item.quantity ?? 0), 0);
 }
 
 // 판매자가 직접 취소할 수 있는 상태: 물건이 나가기 전(배송요청·배송준비).
@@ -115,9 +116,11 @@ function DeliveryRow({ delivery, selectable, selected, onToggle, onCancel }: Row
             </td>
             <td className="p-space-md">
                 {items.map((item) => (
-                    <div key={item.deliveryItemId}>
-                        <div className="font-label-md">{item.productName ?? '상품 정보 없음'}</div>
+                    <div key={item.deliveryItemId} className={item.canceledAt ? 'text-outline' : undefined}>
+                        <div className={`font-label-md ${item.canceledAt ? 'line-through' : ''}`}>{item.productName ?? '상품 정보 없음'}</div>
                         <div className="text-caption text-on-surface-variant">{(item.options ?? []).map((option) => `${option.optionName}: ${option.optionValue}`).join(' / ')}</div>
+                        {/* 상품 단위로 취소된 상품. 남은 상품만 보낸다. */}
+                        {item.canceledAt && <div className="text-caption text-error">취소 · {deliveryCancelLabel(item.cancelReason) ?? '사유 기록 없음'}</div>}
                     </div>
                 ))}
             </td>
