@@ -16,6 +16,11 @@ type Props = {
     onSelect: (productId: number) => void;
     onOptionChange: (typeId: number, optionId: number | null) => void;
     onQuantityChange: (quantity: number) => void;
+    // 찜: 판매글이 판매 중 · 판매 중지일 때만 새로 찜할 수 있다. 이미 찜한 상품은 언제든 해제할 수 있다
+    canWish: boolean;
+    wishPendingId: number | null; // 찜하기 · 찜 해제 요청 중인 상품
+    wishError: string | null;
+    onToggleWish: (product: ProductOption) => void;
 };
 
 const SELECT_CLASS =
@@ -33,6 +38,10 @@ export default function ProductOptions({
     onSelect,
     onOptionChange,
     onQuantityChange,
+    canWish,
+    wishPendingId,
+    wishError,
+    onToggleWish,
 }: Props) {
     const selected = products.find((p) => p.id === selectedId) ?? null;
     const soldOut = inventory != null && inventory.available <= 0;
@@ -42,19 +51,40 @@ export default function ProductOptions({
 
     return (
         <>
-            <div className="pt-1">
+            <div className="flex flex-col gap-2 pt-1">
                 <RadioList label="상품 선택" value={selectedId === null ? '' : String(selectedId)} onChange={(value) => onSelect(Number(value))} isDisabled={disabled}>
-                    {products.map((product) => (
-                        <RadioListItem
-                            key={product.id}
-                            value={String(product.id)}
-                            label={product.name}
-                            description={product.onSale ? undefined : <span className="text-error">판매 중지</span>}
-                            isDisabled={!product.onSale}
-                            endContent={<Text weight="semibold" hasTabularNumbers>{product.price === null ? '가격 문의' : formatPrice(product.price)}</Text>}
-                        />
-                    ))}
+                    {products.map((product) => {
+                        const wishLocked = wishPendingId === product.id || (!canWish && !product.wished);
+                        return (
+                            <RadioListItem
+                                key={product.id}
+                                value={String(product.id)}
+                                label={product.name}
+                                description={product.onSale ? undefined : <span className="text-error">판매 중지</span>}
+                                isDisabled={!product.onSale}
+                                endContent={
+                                    <span className="flex items-center gap-space-xs">
+                                        <Text weight="semibold" hasTabularNumbers>{product.price === null ? '가격 문의' : formatPrice(product.price)}</Text>
+                                        {/* 행 안의 버튼 누름은 라디오 선택으로 넘어가지 않는다. 판매 중지 상품(비활성 행)도 찜할 수 있다 */}
+                                        <IconButton
+                                            label={product.wished ? `${product.name} 찜 해제` : `${product.name} 찜하기`}
+                                            variant="ghost"
+                                            icon={<Icon name="favorite" filled={product.wished} className={product.wished ? 'text-error' : 'text-on-surface-variant'} />}
+                                            isDisabled={wishLocked}
+                                            tooltip={wishLocked && wishPendingId !== product.id ? '판매 중이거나 판매 중지된 상품만 찜할 수 있습니다' : undefined}
+                                            onClick={() => onToggleWish(product)}
+                                        />
+                                    </span>
+                                }
+                            />
+                        );
+                    })}
                 </RadioList>
+                {wishError && (
+                    <p className="font-body-sm text-body-sm text-error" role="alert">
+                        {wishError}
+                    </p>
+                )}
             </div>
 
             {selected && selected.optionGroups.length > 0 && (
