@@ -143,6 +143,14 @@ async function ProductJsonLd({ params }: Props) {
     );
 }
 
+// 판매글을 서버에서 받아 상세 화면의 첫 데이터로 넘긴다. 첫 HTML에 제목 · 본문 · 이미지 · 가격이 들어간다. (OPS-9)
+// 없는 판매글 · BE 오류면 넘기지 않고 지금처럼 브라우저에서 불러와 안내 화면을 보여 준다.
+async function ServerProductDetail({ params }: Props) {
+    const { id } = await params;
+    const post = await loadPost(id);
+    return <ProductDetail initialData={post && post !== 'not-found' ? { data: post } : undefined} />;
+}
+
 // 원단 스펙·사이즈 가이드·FAQ 탭은 상품별 데이터가 BE에 없어 숨겨 두었다. (로드맵 SHOP-3)
 export default function ProductDetailPage({ params }: Props) {
     return (
@@ -151,9 +159,9 @@ export default function ProductDetailPage({ params }: Props) {
                 <ProductJsonLd params={params} />
             </Suspense>
             <div className="max-w-[1200px] mx-auto px-4 py-10 sm:px-6 sm:py-12">
-                {/* 요청마다 달라지는 상품 id 를 읽는 부분만 클라이언트에서 렌더링되도록 Suspense로 감싼다 */}
+                {/* 요청마다 달라지는 상품 id 를 읽고 판매글을 받는 부분만 Suspense로 감싸 요청 때 채운다 */}
                 <Suspense fallback={<DetailSkeleton />}>
-                    <ProductDetail />
+                    <ServerProductDetail params={params} />
                 </Suspense>
             </div>
         </div>
