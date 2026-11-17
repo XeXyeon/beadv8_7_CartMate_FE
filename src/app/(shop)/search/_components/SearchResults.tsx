@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Heading } from '@astryxdesign/core/Heading';
+import { Pagination } from '@astryxdesign/core/Pagination';
 import { Text } from '@astryxdesign/core/Text';
 import { useSelectSalesPostAll } from '@/api/generated/sales-post-controller/sales-post-controller';
 import { errorMessage } from '@/api/http';
@@ -51,7 +52,7 @@ export default function SearchResults() {
 
     return (
         <div className="flex w-full flex-col gap-7">
-            <div className="flex flex-wrap items-baseline gap-2 border-b border-outline-variant pb-5">
+            <div className="flex flex-wrap items-baseline gap-2">
                 <Heading level={1}>
                     {keyword ? <>&quot;{keyword}&quot; 검색 결과</> : '전체 상품'}
                 </Heading>
@@ -63,7 +64,7 @@ export default function SearchResults() {
                 <div className="flex-1 w-full flex flex-col gap-space-lg">
                     <SearchSortBar />
                     {query.isPending ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-gutter w-full">
+                        <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-gutter w-full">
                             {Array.from({ length: PAGE_SIZE }, (_, i) => (
                                 <SalesPostCardSkeleton key={i} />
                             ))}
@@ -82,12 +83,12 @@ export default function SearchResults() {
                         <EmptyResult keyword={keyword} />
                     ) : (
                         <>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-gutter w-full">
+                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-gutter w-full">
                                 {cards.map(({ card, trust }) => (
                                     <SalesPostCard key={card.id} post={card} trust={trust} />
                                 ))}
                             </div>
-                            {totalPages > 1 && <Pagination keyword={keyword} page={page} totalPages={totalPages} />}
+                            {totalPages > 1 && <SearchPagination keyword={keyword} page={page} totalPages={totalPages} />}
                         </>
                     )}
                 </div>
@@ -96,40 +97,13 @@ export default function SearchResults() {
     );
 }
 
-function Pagination({ keyword, page, totalPages }: { keyword: string; page: number; totalPages: number }) {
-    const first = Math.max(1, page - PAGE_WINDOW);
-    const last = Math.min(totalPages, page + PAGE_WINDOW);
-    const pages = Array.from({ length: last - first + 1 }, (_, i) => first + i);
-    const arrowClass = 'px-2 py-1 border border-outline-variant rounded text-on-surface hover:bg-surface-container';
-
+// 페이지 번호는 astryx Pagination. 번호를 누르면 URL의 page 를 바꿔 이동한다(뒤로 가기 · 공유 주소 유지).
+function SearchPagination({ keyword, page, totalPages }: { keyword: string; page: number; totalPages: number }) {
+    const router = useRouter();
     return (
-        <nav className="flex items-center justify-center gap-1 py-space-md border-t border-outline-variant font-label-sm text-label-sm" aria-label="페이지">
-            {page > 1 && (
-                <Link className={arrowClass} href={searchHref(keyword, page - 1)} aria-label="이전 페이지">
-                    <Icon name="chevron_left" className="text-[16px]" />
-                </Link>
-            )}
-            {pages.map((n) =>
-                n === page ? (
-                    <span key={n} className="w-8 h-8 flex items-center justify-center bg-primary text-on-primary rounded" aria-current="page">
-                        {n}
-                    </span>
-                ) : (
-                    <Link
-                        key={n}
-                        className="w-8 h-8 flex items-center justify-center border border-outline-variant text-on-surface rounded hover:bg-surface-container"
-                        href={searchHref(keyword, n)}
-                    >
-                        {n}
-                    </Link>
-                ),
-            )}
-            {page < totalPages && (
-                <Link className={arrowClass} href={searchHref(keyword, page + 1)} aria-label="다음 페이지">
-                    <Icon name="chevron_right" className="text-[16px]" />
-                </Link>
-            )}
-        </nav>
+        <div className="flex justify-center py-space-md">
+            <Pagination label="페이지" page={page} totalPages={totalPages} siblingCount={PAGE_WINDOW} onChange={(next) => router.push(searchHref(keyword, next))} />
+        </div>
     );
 }
 
