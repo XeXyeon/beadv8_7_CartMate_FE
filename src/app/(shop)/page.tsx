@@ -6,9 +6,25 @@ import { Heading } from '@astryxdesign/core/Heading';
 import { Text } from '@astryxdesign/core/Text';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, jsonLdString, pageMetadata, siteUrl } from '@/lib/seo';
 import HomeSalesPosts from './_components/HomeSalesPosts';
 
-export const metadata: Metadata = { title: '홈 | TEAMBUY' };
+export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: ROUTES.home });
+
+// 사이트 · 운영 주체 구조화 데이터. 절대 URL이 필요해 사이트 주소가 있을 때만 낸다.
+function SiteJsonLd() {
+    const base = siteUrl();
+    if (!base) return null;
+    const url = new URL(ROUTES.home, base).toString();
+    const data = {
+        '@context': 'https://schema.org',
+        '@graph': [
+            { '@type': 'WebSite', name: SITE_NAME, url, inLanguage: 'ko-KR' },
+            { '@type': 'Organization', name: SITE_NAME, url },
+        ],
+    };
+    return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(data) }} />;
+}
 
 const PURCHASE_STEPS = [
     { icon: 'search', title: '상품 찾기', description: '팀에 필요한 유니폼과 장비를 살펴보세요.' },
@@ -19,6 +35,7 @@ const PURCHASE_STEPS = [
 export default function HomePage() {
     return (
         <div className="w-full">
+            <SiteJsonLd />
             <section className="border-b border-outline-variant bg-surface-container-low">
                 <div className="mx-auto grid max-w-[1200px] gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1.4fr_0.6fr] lg:items-end lg:py-16">
                     {/* astryx Text·Heading 은 자체 margin 이 우선해 mt-* 가 먹지 않는다. 간격은 부모 gap 으로 준다. */}

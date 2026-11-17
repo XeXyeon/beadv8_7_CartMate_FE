@@ -1,5 +1,9 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import RedirectIfLoggedIn from './_components/RedirectIfLoggedIn';
+
+// 로그인 · 회원가입은 검색 결과에 내지 않는다 (OPS-4)
+export const metadata: Metadata = { robots: { index: false, follow: true } };
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
     return (
