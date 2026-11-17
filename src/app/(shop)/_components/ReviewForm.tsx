@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Text } from '@astryxdesign/core/Text';
+import { TextArea } from '@astryxdesign/core/TextArea';
 import Icon from '@/components/ui/Icon';
 
 // BE SalesPostReview.MIN_CONTENT_LENGTH · MAX_CONTENT_LENGTH
@@ -28,9 +29,6 @@ function validate(rating: number, content: string): string | null {
     if (length > REVIEW_MAX_LENGTH) return `${REVIEW_MAX_LENGTH}자까지 쓸 수 있습니다.`;
     return null;
 }
-
-const TEXTAREA_CLASS =
-    'w-full p-space-sm bg-surface border border-outline-variant rounded text-on-surface placeholder:text-outline focus:border-primary focus:outline-none resize-y';
 
 type Props = {
     initialRating?: number;
@@ -68,7 +66,7 @@ export default function ReviewForm({ initialRating = 0, initialContent = '', sub
                             role="radio"
                             aria-checked={rating === n}
                             aria-label={`${n}점`}
-                            className="p-0.5"
+                            className="flex h-10 w-10 items-center justify-center"
                             disabled={disabled}
                             onClick={() => setRating(n)}
                         >
@@ -78,22 +76,20 @@ export default function ReviewForm({ initialRating = 0, initialContent = '', sub
                 </div>
                 {rating > 0 && <Text type="supporting" color="secondary">{rating}점</Text>}
             </div>
-            <textarea
-                className={TEXTAREA_CLASS}
+            <TextArea
+                label="리뷰 내용"
+                isLabelHidden
                 rows={4}
                 maxLength={REVIEW_MAX_LENGTH}
                 placeholder={`상품은 어떠셨나요? ${REVIEW_MIN_LENGTH}자 이상 써 주세요.`}
                 value={content}
-                disabled={disabled}
-                onChange={(e) => setContent(e.target.value)}
+                isDisabled={disabled}
+                onChange={(value) => setContent(value)}
             />
-            <div className="flex flex-wrap items-center justify-between gap-space-sm">
-                <Text type="supporting" color="secondary">
-                    {content.trim().length} / {REVIEW_MAX_LENGTH}
-                </Text>
+            <div className="flex justify-end">
                 <div className="flex gap-space-xs">
                     {onCancel && <Button label="취소" size="sm" variant="ghost" onClick={onCancel} />}
-                    <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} />
+                    <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} isLoading={disabled} />
                 </div>
             </div>
             {problem && <Text className="text-error text-caption">{problem}</Text>}
