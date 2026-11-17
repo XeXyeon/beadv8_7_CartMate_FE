@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { cache, Suspense } from 'react';
 import type { SelectSalesPostResponse } from '@/api/generated/model';
 import { selectSalesPostDetail } from '@/api/generated/sales-post-controller/sales-post-controller';
-import { ApiError } from '@/api/http';
+import { ApiError, http, type RsData } from '@/api/http';
 import { ROUTES } from '@/lib/routes';
 import { toProductOption } from '@/lib/salesPost';
 import { NOINDEX_POST_STATUSES, SITE_DESCRIPTION, SITE_NAME, jsonLdString, pageMetadata, siteUrl, summarize } from '@/lib/seo';
@@ -19,6 +19,20 @@ const loadPost = cache(async (id: string): Promise<SelectSalesPostResponse | 'no
         return (await selectSalesPostDetail(postId)).data ?? 'not-found';
     } catch (error) {
         return error instanceof ApiError && error.status === 404 ? 'not-found' : null;
+    }
+});
+
+// 판매글 응답의 리뷰 집계(생성 타입에 아직 없음). 화면 별점 요약(ProductDetail의 RatingSummary)과 같은 값이다
+type PostWithReviews = SelectSalesPostResponse & { reviewCount?: number; averageRating?: number };
+
+// 화면 리뷰 목록의 첫 페이지(최신 10개, 로그인 없이 보임)와 같은 값만 구조화 데이터에 쓴다
+type PublicReview = { writerNickname?: string; rating?: number; content?: string; createdAt?: string };
+const loadReviews = cache(async (postId: number): Promise<PublicReview[]> => {
+    try {
+        const res = await http<RsData<{ content?: PublicReview[] }>>(`/api/sales-posts/${postId}/reviews?page=0`);
+        return res.data?.content ?? [];
+    } catch {
+        return [];
     }
 });
 
@@ -61,8 +75,13 @@ async function ProductJsonLd({ params }: Props) {
     const url = new URL(ROUTES.product(id), base).toString();
     const name = post.title ?? '상품';
     const products = productsOf(post);
-    const prices = products.map((p) => p.price).filter((price): price is number => price !== null);
-    const available = post.status === 'ON_SALE' && products.some((p) => p.onSale);
+    // 실제 판매가는 재고(옵션 조합)별 가격(기본가 + 추가 금액)이다. 재고 정보가 없는 상품만 기본가를 쓴다
+    const prices = products.flatMap((p) =>
+        p.inventories.length > 0 ? p.inventories.map((i) => i.price) : p.price !== null ? [p.price] : [],
+    );
+    // 판매 중인 상품에 지금 살 수 있는 재고가 하나라도 있어야 InStock
+    const available =
+        post.status === 'ON_SALE' && products.some((p) => p.onSale && p.inventories.some((i) => i.available > 0));
     const availability = `https://schema.org/${available ? 'InStock' : 'OutOfStock'}`;
     const low = Math.min(...prices);
     const high = Math.max(...prices);
@@ -79,6 +98,8 @@ async function ProductJsonLd({ params }: Props) {
     ];
     // Google의 Product 결과는 가격(offers)이 있어야 한다. 가격이 없으면 경로만 낸다.
     if (prices.length > 0) {
+        const { reviewCount = 0, averageRating = 0 } = post as PostWithReviews;
+        const reviews = reviewCount > 0 && post.id != null ? await loadReviews(post.id) : [];
         graph.push({
             '@type': 'Product',
             name,
@@ -97,6 +118,20 @@ async function ProductJsonLd({ params }: Props) {
                           priceCurrency: 'KRW',
                           availability,
                       },
+            ...(reviewCount > 0 && {
+                aggregateRating: { '@type': 'AggregateRating', ratingValue: averageRating, reviewCount, bestRating: 5, worstRating: 1 },
+            }),
+            ...(reviews.length > 0 && {
+                review: reviews
+                    .filter((r) => r.rating != null)
+                    .map((r) => ({
+                        '@type': 'Review',
+                        author: { '@type': 'Person', name: r.writerNickname || '구매자' },
+                        reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 },
+                        ...(r.createdAt && { datePublished: r.createdAt.slice(0, 10) }),
+                        ...(summarize(r.content, 500) && { reviewBody: summarize(r.content, 500) }),
+                    })),
+            }),
         });
     }
 
