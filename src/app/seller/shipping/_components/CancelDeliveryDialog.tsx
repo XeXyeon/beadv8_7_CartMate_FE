@@ -123,7 +123,7 @@ export default function CancelDeliveryDialog({ deliveries, onClose, onSettled }:
                                         value={allPicked ? true : pickedItemIds.length > 0 ? 'indeterminate' : false}
                                         onChange={togglePickAll}
                                     />
-                                    <ul className="flex flex-col gap-1 border-t border-surface-variant pt-1">
+                                    <ul className="flex flex-col gap-1">
                                         {singleItems.map((item) => (
                                             <li key={item.deliveryItemId} className="flex items-center justify-between gap-space-sm">
                                                 <CheckboxInput
@@ -240,7 +240,7 @@ function CancelResult({ outcomes, onClose }: { outcomes: Outcome[]; onClose: () 
                 )}
 
                 {failed.length > 0 && (
-                    <ul className="flex flex-col gap-space-sm border-t border-surface-variant pt-space-md">
+                    <ul className="flex flex-col gap-space-sm">
                         {failed.map((outcome) => (
                             <li key={outcome.delivery.deliveryId} className="flex gap-space-sm">
                                 <Icon name="error" className="text-[20px] text-error shrink-0" />
