@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Inter } from 'next/font/google';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, rootOpenGraph, siteUrl } from '@/lib/seo';
 import Providers from './providers';
 import './globals.css';
 
@@ -9,9 +10,16 @@ const inter = Inter({
     variable: '--font-inter',
 });
 
+const SITE_URL = siteUrl();
+
+// 공개 화면 SEO 기본값 (OPS-4). 사이트 주소(SITE_URL)가 있을 때만 metadataBase를 둔다.
 export const metadata: Metadata = {
-    title: 'TEAMBUY - 팀 스포츠 공동구매 플랫폼',
-    description: '스포츠 단체복 · 장비 커스텀 공동구매 플랫폼',
+    ...(SITE_URL && { metadataBase: SITE_URL }),
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    applicationName: SITE_NAME,
+    openGraph: rootOpenGraph,
+    twitter: { card: 'summary_large_image' },
 };
 
 export default function RootLayout({
