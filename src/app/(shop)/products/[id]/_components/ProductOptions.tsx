@@ -2,6 +2,7 @@
 
 import { formatPrice, isOptionAvailable, type InventoryChoice, type ProductOption } from '@/lib/salesPost';
 import { Text } from '@astryxdesign/core/Text';
+import Icon from '@/components/ui/Icon';
 
 type Props = {
     products: ProductOption[];
@@ -13,6 +14,11 @@ type Props = {
     onSelect: (productId: number) => void;
     onOptionChange: (typeId: number, optionId: number | null) => void;
     onQuantityChange: (quantity: number) => void;
+    // 찜: 판매글이 판매 중 · 판매 중지일 때만 새로 찜할 수 있다. 이미 찜한 상품은 언제든 해제할 수 있다
+    canWish: boolean;
+    wishPendingId: number | null; // 찜하기 · 찜 해제 요청 중인 상품
+    wishError: string | null;
+    onToggleWish: (product: ProductOption) => void;
 };
 
 const SELECT_CLASS =
@@ -30,6 +36,10 @@ export default function ProductOptions({
     onSelect,
     onOptionChange,
     onQuantityChange,
+    canWish,
+    wishPendingId,
+    wishError,
+    onToggleWish,
 }: Props) {
     const selected = products.find((p) => p.id === selectedId) ?? null;
     const soldOut = inventory != null && inventory.available <= 0;
@@ -48,29 +58,52 @@ export default function ProductOptions({
                     {products.map((product) => {
                         const active = product.id === selectedId;
                         const unavailable = disabled || !product.onSale;
+                        const wishLocked = wishPendingId === product.id || (!canWish && !product.wished);
                         return (
-                            <button
-                                key={product.id}
-                                className={`flex items-center justify-between rounded-lg px-4 py-3 text-left font-label-sm text-label-sm transition-colors ${
-                                    active
-                                        ? 'border-2 border-primary bg-primary-container text-primary font-bold'
-                                        : 'border border-outline-variant bg-surface-container-lowest text-on-surface hover:border-outline'
-                                } disabled:cursor-not-allowed disabled:opacity-60`}
-                                type="button"
-                                role="radio"
-                                aria-checked={active}
-                                disabled={unavailable}
-                                onClick={() => onSelect(product.id)}
-                            >
-                                <span>
-                                    {product.name}
-                                    {!product.onSale && <span className="ml-space-xs font-caption text-caption text-error">판매 중지</span>}
-                                </span>
-                                <span>{product.price === null ? '가격 문의' : formatPrice(product.price)}</span>
-                            </button>
+                            <div key={product.id} className="flex items-stretch gap-space-xs">
+                                <button
+                                    className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-left font-label-sm text-label-sm transition-colors ${
+                                        active
+                                            ? 'border-2 border-primary bg-primary-container text-primary font-bold'
+                                            : 'border border-outline-variant bg-surface-container-lowest text-on-surface hover:border-outline'
+                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={active}
+                                    disabled={unavailable}
+                                    onClick={() => onSelect(product.id)}
+                                >
+                                    <span>
+                                        {product.name}
+                                        {!product.onSale && <span className="ml-space-xs font-caption text-caption text-error">판매 중지</span>}
+                                    </span>
+                                    <span>{product.price === null ? '가격 문의' : formatPrice(product.price)}</span>
+                                </button>
+                                {/* 상품 선택 버튼 안에 버튼을 넣을 수 없어 옆에 따로 둔다 */}
+                                <button
+                                    className="flex w-12 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:border-outline disabled:cursor-not-allowed disabled:opacity-60"
+                                    type="button"
+                                    aria-pressed={product.wished}
+                                    aria-label={product.wished ? `${product.name} 찜 해제` : `${product.name} 찜하기`}
+                                    title={wishLocked && wishPendingId !== product.id ? '판매 중이거나 판매 중지된 상품만 찜할 수 있습니다' : undefined}
+                                    disabled={wishLocked}
+                                    onClick={() => onToggleWish(product)}
+                                >
+                                    <Icon
+                                        name="favorite"
+                                        filled={product.wished}
+                                        className={`text-[22px] ${product.wished ? 'text-error' : 'text-on-surface-variant'}`}
+                                    />
+                                </button>
+                            </div>
                         );
                     })}
                 </div>
+                {wishError && (
+                    <p className="font-body-sm text-body-sm text-error" role="alert">
+                        {wishError}
+                    </p>
+                )}
             </div>
 
             {selected && selected.optionGroups.length > 0 && (

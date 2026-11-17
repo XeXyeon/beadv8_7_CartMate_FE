@@ -33,6 +33,7 @@ export const ROUTES = {
     delivery: (id: string | number) => `/mypage/deliveries/${id}`,
     myClaims: '/mypage/claims',
     myReviews: '/mypage/reviews',
+    myWishes: '/mypage/wishes',
     deposit: '/mypage/deposit',
     depositCharge: '/mypage/deposit/charge',
     depositHistory: '/mypage/deposit/history',

@@ -9,13 +9,15 @@ import { Heading } from '@astryxdesign/core/Heading';
 import { Text } from '@astryxdesign/core/Text';
 import ProductImage from '@/components/ui/ProductImage';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import type { SelectSalesPostResponse } from '@/api/generated/model';
 import { useSelectSalesPostDetail } from '@/api/generated/sales-post-controller/sales-post-controller';
 import { ApiError, errorMessage } from '@/api/http';
+import { useToggleWish } from '@/api/wish';
 import Icon from '@/components/ui/Icon';
+import { useCurrentUser } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
-import { findInventory, toProductOption } from '@/lib/salesPost';
+import { findInventory, toProductOption, type ProductOption } from '@/lib/salesPost';
 import { SellerTrustPanel, toSellerTrust } from '../../../_components/SellerTrust';
 import ProductActions from './ProductActions';
 import ProductOptions from './ProductOptions';
@@ -86,6 +88,25 @@ function DetailContent({ post }: { post: PostWithReviews }) {
         });
         setQuantity(1);
     }
+    // 찜: 비로그인이면 로그인 화면으로 보낸다. 401(로그인 만료)은 전역 처리가 로그인으로 보내므로 따로 표시하지 않는다
+    const router = useRouter();
+    const { isLoggedIn } = useCurrentUser();
+    const toggleWish = useToggleWish();
+    const canWish = post.status === 'ON_SALE' || post.status === 'PAUSED';
+    const wishPendingId = toggleWish.isPending ? (toggleWish.variables?.productId ?? null) : null;
+    const wishError =
+        toggleWish.isError && !(toggleWish.error instanceof ApiError && toggleWish.error.status === 401)
+            ? errorMessage(toggleWish.error, '찜하지 못했습니다.')
+            : null;
+
+    function handleToggleWish(product: ProductOption) {
+        if (!isLoggedIn) {
+            router.push(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.product(post.id ?? 0))}`);
+            return;
+        }
+        toggleWish.mutate({ productId: product.id, wished: !product.wished, salesPostId: post.id ?? 0 });
+    }
+
     const images = products.flatMap((p) => p.imageUrls);
     const mainImage = images[Math.min(imageIndex, images.length - 1)];
 
@@ -143,6 +164,10 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                             onSelect={selectProduct}
                             onOptionChange={selectOption}
                             onQuantityChange={setQuantity}
+                            canWish={canWish}
+                            wishPendingId={wishPendingId}
+                            wishError={wishError}
+                            onToggleWish={handleToggleWish}
                         />
                     )}
                     {currentId !== null && <ProductPaybackConditions key={currentId} productId={currentId} />}

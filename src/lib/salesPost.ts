@@ -69,6 +69,7 @@ export type ProductOption = {
     description: string;
     price: number | null;
     onSale: boolean;
+    wished: boolean; // 로그인한 회원이 이 상품을 찜했는지. 비로그인이면 false
     imageUrls: string[];
     optionGroups: OptionGroup[];
     inventories: InventoryChoice[];
@@ -76,13 +77,19 @@ export type ProductOption = {
 
 export function toProductOption(product: SelectSalesPostProduct): ProductOption | null {
     if (product.id === undefined) return null;
-    const raw = product as SelectSalesPostProduct & { optionGroups?: RawOptionGroup[]; inventoryList?: RawInventory[] };
+    // wished: 판매글 상세에서만 로그인한 회원 기준으로 채워진다 (생성 타입에 아직 없음)
+    const raw = product as SelectSalesPostProduct & {
+        optionGroups?: RawOptionGroup[];
+        inventoryList?: RawInventory[];
+        wished?: boolean;
+    };
     return {
         id: product.id,
         name: product.name ?? '',
         description: product.description ?? '',
         price: typeof product.basePrice === 'number' ? product.basePrice : null,
         onSale: product.status === 'ON_SALE',
+        wished: raw.wished === true,
         imageUrls: [...(product.productImageList ?? [])]
             .sort((a, b) => (a.imageSeq ?? 0) - (b.imageSeq ?? 0))
             .map((image) => imageUrl(image.s3key))
