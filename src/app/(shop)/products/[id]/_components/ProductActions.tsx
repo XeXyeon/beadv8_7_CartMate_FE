@@ -28,7 +28,7 @@ type Props = {
 export default function ProductActions({ postId, inventoryId, available, quantity, onSale, total }: Props) {
     const router = useRouter();
     const queryClient = useQueryClient();
-    const { isLoggedIn } = useCurrentUser();
+    const { isLoggedIn, isLoading: userLoading } = useCurrentUser();
     const addToCart = useAddItem1({
         mutation: {
             // 헤더의 장바구니 개수 등이 바로 갱신되도록 장바구니 조회를 다시 불러온다.
@@ -46,6 +46,8 @@ export default function ProductActions({ postId, inventoryId, available, quantit
 
     const handleAddToCart = () => {
         if (inventoryId === null) return;
+        // 로그인 확인 전(서버 렌더 화면을 이어받는 중 포함)에는 로그인 화면으로 보내지 않는다
+        if (userLoading) return;
         if (!isLoggedIn) {
             router.push(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.product(postId))}`);
             return;

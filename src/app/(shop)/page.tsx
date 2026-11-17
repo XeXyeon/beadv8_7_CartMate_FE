@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Heading } from '@astryxdesign/core/Heading';
 import { Text } from '@astryxdesign/core/Text';
+import { selectSalesPostAll } from '@/api/generated/sales-post-controller/sales-post-controller';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, jsonLdString, pageMetadata, siteUrl } from '@/lib/seo';
-import HomeSalesPosts from './_components/HomeSalesPosts';
+import HomeSalesPosts, { HOME_PAGE_SIZE } from './_components/HomeSalesPosts';
 
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: ROUTES.home });
 
@@ -55,7 +57,9 @@ export default function HomePage() {
             </section>
 
             <div className="mx-auto flex max-w-[1200px] flex-col gap-16 px-4 py-12 sm:px-6">
-                <HomeSalesPosts />
+                <Suspense fallback={<HomeSalesPosts />}>
+                    <ServerHomeSalesPosts />
+                </Suspense>
                 <section aria-labelledby="purchase-guide" className="pt-4">
                     <div className="mb-7 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                         <Heading id="purchase-guide" level={2}>공동구매는 이렇게 시작해요</Heading>
@@ -79,4 +83,11 @@ export default function HomePage() {
             </div>
         </div>
     );
+}
+
+// 최신 판매 상품 첫 페이지를 서버에서 받아 넘긴다. 첫 HTML에 상품 카드 · 상세 링크가 들어가 검색 엔진이 따라갈 수 있다. (OPS-9)
+// BE가 응답하지 않으면 지금처럼 브라우저에서 불러온다.
+async function ServerHomeSalesPosts() {
+    const initialData = await selectSalesPostAll({ page: 0, size: HOME_PAGE_SIZE }).catch(() => undefined);
+    return <HomeSalesPosts initialData={initialData} />;
 }

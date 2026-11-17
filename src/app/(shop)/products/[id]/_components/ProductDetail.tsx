@@ -11,7 +11,7 @@ import ProductImage from '@/components/ui/ProductImage';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import type { SelectSalesPostResponse } from '@/api/generated/model';
-import { useSelectSalesPostDetail } from '@/api/generated/sales-post-controller/sales-post-controller';
+import { useSelectSalesPostDetail, type selectSalesPostDetail } from '@/api/generated/sales-post-controller/sales-post-controller';
 import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
@@ -27,13 +27,16 @@ import ProductReviews from './ProductReviews';
 // reviewCount: 삭제된 리뷰를 뺀 리뷰 수, averageRating: 소수 첫째 자리 평균 별점(리뷰가 없으면 0)
 type PostWithReviews = SelectSalesPostResponse & { reviewCount?: number; averageRating?: number };
 
+type DetailResponse = Awaited<ReturnType<typeof selectSalesPostDetail>>;
+
 // 상품 상세 = BE 판매글 상세(/api/sales-posts/detail). URL의 id 는 판매글 id 다.
-export default function ProductDetail() {
+// initialData: 서버(page.tsx)가 미리 받은 응답. 있으면 첫 HTML부터 본문이 들어간다(검색 엔진 · 공유 미리보기). (OPS-9)
+export default function ProductDetail({ initialData }: { initialData?: DetailResponse }) {
     const { id } = useParams<{ id: string }>();
     const postId = Number(id);
     const validId = Number.isInteger(postId) && postId > 0;
 
-    const query = useSelectSalesPostDetail(postId, { query: { enabled: validId } });
+    const query = useSelectSalesPostDetail(postId, { query: { enabled: validId, initialData } });
     const post = query.data?.data;
 
     if (!validId || (query.error instanceof ApiError && query.error.status === 404)) {

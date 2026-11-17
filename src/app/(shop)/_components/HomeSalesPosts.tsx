@@ -5,19 +5,20 @@ import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Heading } from '@astryxdesign/core/Heading';
 import { Text } from '@astryxdesign/core/Text';
-import { useSelectSalesPostAll } from '@/api/generated/sales-post-controller/sales-post-controller';
+import { useSelectSalesPostAll, type selectSalesPostAll } from '@/api/generated/sales-post-controller/sales-post-controller';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
 import SalesPostCard, { SalesPostCardSkeleton } from './SalesPostCard';
 import { toSalesPostCardWithTrust } from './SellerTrust';
 
-const HOME_PAGE_SIZE = 8;
+export const HOME_PAGE_SIZE = 8;
 
 // BE 목록은 최신 등록순만 지원한다. 나머지 정렬은 자리만 남겨 두고 비활성. (로드맵 SHOP-3)
 // 홈 "최신 판매 상품" 목록.
-export default function HomeSalesPosts() {
-    const query = useSelectSalesPostAll({ page: 0, size: HOME_PAGE_SIZE });
+// initialData: 서버(page.tsx)가 미리 받은 첫 페이지. 있으면 첫 HTML부터 상품 카드 · 링크가 들어간다. (OPS-9)
+export default function HomeSalesPosts({ initialData }: { initialData?: Awaited<ReturnType<typeof selectSalesPostAll>> }) {
+    const query = useSelectSalesPostAll({ page: 0, size: HOME_PAGE_SIZE }, { query: { initialData } });
     const page = query.data?.data;
     const cards = (page?.content ?? []).map(toSalesPostCardWithTrust).filter((item) => item !== null);
 
