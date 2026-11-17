@@ -4,7 +4,7 @@ import SellerSidebar from '@/components/layout/SellerSidebar';
 
 export default function SellerLayout({ children }: { children: ReactNode }) {
     return (
-        <div className="min-h-screen bg-surface">
+        <div className="min-h-screen bg-background text-on-background">
             <SellerSidebar />
             <div className="md:pl-64">
                 <header className="sticky top-0 z-40 flex h-16 items-center border-b border-outline-variant/40 bg-surface/90 px-space-md backdrop-blur-xl md:fixed md:left-64 md:right-0 md:px-space-xl">
