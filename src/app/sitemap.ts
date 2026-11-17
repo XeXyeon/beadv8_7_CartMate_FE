@@ -17,7 +17,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (!base) return [];
     const url = (path: string) => new URL(path, base).toString();
 
-    const entries: MetadataRoute.Sitemap = [{ url: url(ROUTES.home) }, { url: url(ROUTES.search) }];
+    const entries: MetadataRoute.Sitemap = [
+        { url: url(ROUTES.home) },
+        { url: url(ROUTES.search) },
+        { url: url(ROUTES.notices) },
+    ];
     for (const post of await loadPosts()) {
         if (post.id === undefined || (post.status && NOINDEX_POST_STATUSES.has(post.status))) continue;
         const updated = post.updatedAt ?? post.createdAt;
