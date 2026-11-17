@@ -23,8 +23,6 @@ import OrderItems from './OrderItems';
 
 const CARD = 'bg-surface-container-lowest border border-outline-variant rounded p-space-md';
 const CARD_TITLE = 'font-label-md text-label-md text-on-surface font-bold mb-space-md';
-const OUTLINE_BUTTON =
-    'h-10 px-space-md border border-outline-variant bg-surface-container-lowest hover:bg-surface-container font-label-md text-label-md text-on-surface rounded inline-flex items-center justify-center gap-space-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-surface-container-lowest';
 const TONE_VARIANT: Record<'pending' | 'done' | 'muted', BadgeVariant> = { pending: 'warning', done: 'success', muted: 'neutral' };
 // 취소 요청 · 환불 처리를 기다리는 동안 다시 받는 간격
 const CANCEL_POLL_MS = 3000;
@@ -329,9 +327,7 @@ function OrderStatusPanel({ order, orderId, canceledReasons }: { order: OrderDet
                     {!expired && (
                         <Button label={`${formatPrice(order.totalAmount ?? 0)} 결제하기`} variant="primary" className="flex-1" href={`${ROUTES.checkout}?order=${orderId}`} icon={<Icon name="account_balance_wallet" className="text-[18px]" />} />
                     )}
-                    <button className={`${OUTLINE_BUTTON} flex-1`} type="button" disabled={busy} onClick={onCancel}>
-                        {busy ? '취소하는 중...' : '주문 취소'}
-                    </button>
+                    <Button label="주문 취소" variant="secondary" className="flex-1" isLoading={busy} onClick={onCancel} />
                 </div>
             )}
         </section>

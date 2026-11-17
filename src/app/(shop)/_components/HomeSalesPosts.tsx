@@ -23,19 +23,16 @@ export default function HomeSalesPosts() {
 
     return (
         <section className="flex flex-col gap-7" aria-labelledby="latest-products">
-            <div className="flex flex-col gap-3 border-b border-outline-variant pb-5 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <Text type="supporting" color="accent">CATALOG</Text>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-2">
-                        <Heading id="latest-products" level={2}>새로 등록된 상품</Heading>
-                        {page && <Text type="supporting" color="secondary">전체 {page.totalElements ?? 0}개</Text>}
-                    </div>
+            <div className="flex items-end justify-between gap-3">
+                <div className="flex flex-wrap items-baseline gap-2">
+                    <Heading id="latest-products" level={2}>새로 등록된 상품</Heading>
+                    {page && <Text type="supporting" color="secondary">전체 {page.totalElements ?? 0}개</Text>}
                 </div>
                 <Button label="전체 상품 보기" href={ROUTES.search} as={Link} variant="ghost" size="sm" endContent={<Icon name="arrow_forward" />} />
             </div>
 
             {query.isPending ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-gutter">
                     {Array.from({ length: HOME_PAGE_SIZE }, (_, i) => (
                         <SalesPostCardSkeleton key={i} />
                     ))}
@@ -48,7 +45,7 @@ export default function HomeSalesPosts() {
             ) : cards.length === 0 ? (
                 <EmptyState title="아직 등록된 판매 상품이 없습니다" description="새 상품이 등록되면 이곳에서 바로 확인할 수 있어요." />
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-gutter">
                     {cards.map(({ card, trust }) => (
                         <SalesPostCard key={card.id} post={card} trust={trust} />
                     ))}

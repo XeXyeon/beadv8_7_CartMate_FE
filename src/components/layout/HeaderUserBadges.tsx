@@ -24,7 +24,7 @@ export function CartCountBadge() {
 
     return (
         <span
-            className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-primary text-on-primary font-caption text-caption flex items-center justify-center ring-2 ring-white"
+            className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-primary text-on-primary font-caption text-caption flex items-center justify-center ring-2 ring-surface-container-lowest"
             aria-label={`장바구니 ${count}개`}
         >
             {count > 99 ? '99+' : count}

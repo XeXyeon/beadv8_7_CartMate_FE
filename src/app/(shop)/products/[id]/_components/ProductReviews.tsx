@@ -7,6 +7,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Heading } from '@astryxdesign/core/Heading';
 import { Text } from '@astryxdesign/core/Text';
+import { TextArea } from '@astryxdesign/core/TextArea';
 import { getSelectSalesPostDetailQueryKey } from '@/api/generated/sales-post-controller/sales-post-controller';
 import { errorMessage, http, type RsData } from '@/api/http';
 import Icon from '@/components/ui/Icon';
@@ -95,7 +96,7 @@ export default function ProductReviews({ postId, sellerId, reviewCount }: Props)
     const total = query.data?.pages[0]?.totalElements ?? reviewCount;
 
     return (
-        <section id="reviews" className="mt-10 flex w-full scroll-mt-24 flex-col gap-5 border-t border-outline-variant pt-10" aria-labelledby="product-reviews">
+        <section id="reviews" className="mt-12 flex w-full scroll-mt-24 flex-col gap-5" aria-labelledby="product-reviews">
             <Heading id="product-reviews" level={2}>
                 리뷰 {total > 0 && <span className="text-on-surface-variant">{total.toLocaleString('ko-KR')}</span>}
             </Heading>
@@ -161,10 +162,10 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
 
     return (
         <li className="flex flex-col gap-space-sm p-5">
+            {/* 머리 줄: 이름 · 배지 · 날짜 (오른쪽 내 리뷰 수정 · 삭제), 둘째 줄: 별점 · 산 상품 */}
             <div className="flex flex-wrap items-center justify-between gap-space-sm">
                 <div className="flex flex-wrap items-center gap-space-sm">
-                    <Stars rating={review.rating} />
-                    <Text weight="semibold">{review.writerNickname}</Text>
+                    <span className="font-body-lg text-body-lg font-semibold text-on-surface">{review.writerNickname}</span>
                     {review.isMine && <Badge label="내 리뷰" variant="blue" />}
                     <Text type="supporting" color="secondary">
                         {formatDateTime(review.createdAt)}
@@ -179,10 +180,13 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
                     </div>
                 )}
             </div>
-            <Text type="supporting" color="secondary">
-                {review.productName}
-                {review.optionName && ` · ${review.optionName}`}
-            </Text>
+            <div className="flex flex-wrap items-center gap-space-sm">
+                <Stars rating={review.rating} />
+                <Text type="supporting" color="secondary">
+                    {review.productName}
+                    {review.optionName && ` · ${review.optionName}`}
+                </Text>
+            </div>
             {editing ? (
                 <ReviewForm
                     initialRating={review.rating}
@@ -268,9 +272,6 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
     );
 }
 
-const TEXTAREA_CLASS =
-    'w-full p-space-sm bg-surface border border-outline-variant rounded text-on-surface placeholder:text-outline focus:border-primary focus:outline-none resize-y';
-
 // 판매자 답글 입력 (1 ~ 1000자). 빈 글 · 초과는 글씨로, 서버 거절은 부르는 쪽이 alert로 보여 준다
 function ReplyForm({
     initial = '',
@@ -300,22 +301,20 @@ function ReplyForm({
 
     return (
         <form className="flex flex-col gap-space-xs" onSubmit={submit} noValidate>
-            <textarea
-                className={TEXTAREA_CLASS}
+            <TextArea
+                label="판매자 답글"
+                isLabelHidden
                 rows={3}
                 maxLength={REPLY_MAX_LENGTH}
                 placeholder="구매자에게 답글을 남겨 주세요."
                 value={content}
-                disabled={disabled}
-                onChange={(e) => setContent(e.target.value)}
+                isDisabled={disabled}
+                onChange={(value) => setContent(value)}
             />
-            <div className="flex flex-wrap items-center justify-between gap-space-sm">
-                <Text type="supporting" color="secondary">
-                    {content.trim().length} / {REPLY_MAX_LENGTH}
-                </Text>
+            <div className="flex justify-end">
                 <div className="flex gap-space-xs">
                     <Button label="취소" size="sm" variant="ghost" onClick={onCancel} />
-                    <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} />
+                    <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} isLoading={disabled} />
                 </div>
             </div>
             {problem && <Text className="text-error text-caption">{problem}</Text>}

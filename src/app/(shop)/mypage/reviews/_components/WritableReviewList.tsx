@@ -111,7 +111,7 @@ export default function WritableReviewList() {
                                 <div className="flex flex-col gap-space-sm">
                                     <div className="flex flex-wrap items-start justify-between gap-space-sm">
                                         <div className="flex min-w-0 flex-col gap-1">
-                                            <Link className="font-semibold hover:text-primary hover:underline" href={ROUTES.product(item.salesPostId)}>
+                                            <Link className="font-body-lg text-body-lg font-semibold text-on-surface hover:text-primary hover:underline" href={ROUTES.product(item.salesPostId)}>
                                                 {item.productName}
                                             </Link>
                                             {item.optionName && <Text type="supporting" color="secondary">{item.optionName}</Text>}
@@ -132,7 +132,7 @@ export default function WritableReviewList() {
                                         )}
                                     </div>
                                     {openId === item.purchaseId && (
-                                        <div className="border-t border-outline-variant pt-space-sm">
+                                        <div className="pt-space-xs">
                                             <ReviewForm
                                                 submitLabel="리뷰 등록"
                                                 disabled={create.isPending}

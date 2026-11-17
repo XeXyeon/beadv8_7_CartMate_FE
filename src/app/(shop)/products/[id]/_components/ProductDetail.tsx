@@ -90,31 +90,21 @@ function DetailContent({ post }: { post: PostWithReviews }) {
     const mainImage = images[Math.min(imageIndex, images.length - 1)];
 
     return (
-        <div className="flex flex-col w-full">
-            <nav className="mb-6 flex items-center gap-2 font-label-sm text-label-sm text-secondary" aria-label="현재 위치">
-                <Link className="hover:text-primary hover:underline" href={ROUTES.home}>
-                    홈
-                </Link>
-                <span className="text-outline-variant">/</span>
-                <Link className="hover:text-primary hover:underline" href={ROUTES.search}>
-                    전체 상품
-                </Link>
-                <span className="text-outline-variant">/</span>
-                <span className="text-primary font-bold line-clamp-1">{post.title}</span>
-            </nav>
+        <div className="flex w-full flex-col">
             <div className="grid grid-cols-1 items-start gap-8 pb-12 lg:grid-cols-2">
                 <div className="flex flex-col gap-space-md">
                     <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-surface-container-low">
-                        <ProductImage src={mainImage} alt={post.title ?? ''} className="object-contain" iconClassName="text-[48px]" />
+                        <ProductImage src={mainImage} alt={post.title ?? ''} className="object-contain" iconClassName="text-[48px]" eager />
                     </div>
                     {images.length > 1 && (
                         <div className="grid grid-cols-4 gap-space-sm">
                             {images.map((url, i) => (
                                 <button
                                     key={`${i}-${url}`}
-                                    className={`relative aspect-square overflow-hidden rounded-md bg-surface-container-low ${i === imageIndex ? 'border-2 border-primary' : 'border border-outline-variant hover:border-outline'}`}
+                                    className={`relative aspect-square overflow-hidden rounded-md bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${i === imageIndex ? 'border-2 border-primary' : 'border border-outline-variant hover:border-outline'}`}
                                     type="button"
                                     aria-label={`이미지 ${i + 1}`}
+                                    aria-pressed={i === imageIndex}
                                     onClick={() => setImageIndex(i)}
                                 >
                                     <ProductImage src={url} alt="" className="object-cover" />
@@ -124,7 +114,7 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                     )}
                 </div>
                 <div className="flex flex-col gap-5">
-                    <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+                    <div className="flex items-center justify-between">
                         <Badge label={onSale ? '판매 중' : '판매 중지'} variant={onSale ? 'blue' : 'neutral'} />
                         <Text type="supporting" color="secondary">조회 {post.viewCount ?? 0}</Text>
                     </div>
@@ -145,19 +135,19 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                             onQuantityChange={setQuantity}
                         />
                     )}
-                    {currentId !== null && <ProductPaybackConditions key={currentId} productId={currentId} />}
-                    <SellerTrustPanel sellerId={post.sellerId} fallback={toSellerTrust(post.sellerTrustLevel, post.sellerTrustScore)} />
                     <ProductActions
                         postId={post.id ?? 0}
                         inventoryId={inventory?.inventoryId ?? null}
                         available={inventory?.available ?? 0}
-                        needsOption={currentProduct != null && currentProduct.optionGroups.length > 0 && inventory == null}
                         quantity={shownQuantity}
                         onSale={onSale}
+                        total={inventory == null ? null : inventory.price * shownQuantity}
                     />
+                    {currentId !== null && <ProductPaybackConditions key={currentId} productId={currentId} />}
+                    <SellerTrustPanel sellerId={post.sellerId} fallback={toSellerTrust(post.sellerTrustLevel, post.sellerTrustScore)} />
                 </div>
             </div>
-            <section className="mt-6 flex w-full flex-col gap-5 border-t border-outline-variant pt-10" aria-labelledby="product-information">
+            <section className="mt-6 flex w-full flex-col gap-5" aria-labelledby="product-information">
                 <Heading id="product-information" level={2}>상품 상세 정보</Heading>
                 {post.content && <Text className="whitespace-pre-line">{post.content}</Text>}
                 {products.length > 0 && (
@@ -190,7 +180,7 @@ function RatingSummary({ count, average }: { count: number; average: number }) {
     return (
         <a
             href="#reviews"
-            className="flex w-fit items-center gap-space-xs hover:underline"
+            className="flex w-fit items-center gap-space-xs rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             aria-label={`평균 별점 ${average.toFixed(1)}점, 리뷰 ${count}개 보기`}
         >
             <Icon name="star" filled className="text-[20px] text-amber-500" />

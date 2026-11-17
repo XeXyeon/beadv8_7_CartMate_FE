@@ -7,7 +7,9 @@ import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Heading } from '@astryxdesign/core/Heading';
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
 import { Text } from '@astryxdesign/core/Text';
+import { TextArea } from '@astryxdesign/core/TextArea';
 import { errorMessage, http, type RsData } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { useCurrentUser, useMySellerId } from '@/lib/auth';
@@ -76,7 +78,7 @@ export default function ProductComments({ postId, sellerId }: Props) {
     const total = query.data?.pages[0]?.totalElements ?? 0;
 
     return (
-        <section id="comments" className="mt-10 flex w-full scroll-mt-24 flex-col gap-5 border-t border-outline-variant pt-10" aria-labelledby="product-comments">
+        <section id="comments" className="mt-12 flex w-full scroll-mt-24 flex-col gap-5" aria-labelledby="product-comments">
             <Heading id="product-comments" level={2}>
                 댓글 {total > 0 && <span className="text-on-surface-variant">{total.toLocaleString('ko-KR')}</span>}
             </Heading>
@@ -151,9 +153,6 @@ function validate(content: string): string | null {
     return null;
 }
 
-const TEXTAREA_CLASS =
-    'w-full p-space-sm bg-surface border border-outline-variant rounded text-on-surface placeholder:text-outline focus:border-primary focus:outline-none resize-y';
-
 function TextBox({
     initial = '',
     placeholder,
@@ -189,29 +188,24 @@ function TextBox({
 
     return (
         <form className="flex flex-col gap-space-xs" onSubmit={submit} noValidate>
-            <textarea
-                className={TEXTAREA_CLASS}
+            <TextArea
+                label={placeholder}
+                isLabelHidden
                 rows={3}
                 maxLength={MAX_LENGTH}
                 placeholder={placeholder}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(value) => setContent(value)}
             />
             <div className="flex flex-wrap items-center justify-between gap-space-sm">
                 <div className="flex items-center gap-space-md">
                     {withSecret && (
-                        <label className="flex items-center gap-1 text-body-sm text-on-surface-variant">
-                            <input type="checkbox" checked={isSecret} onChange={(e) => setIsSecret(e.target.checked)} />
-                            비밀 댓글 (판매자와 나만 보기)
-                        </label>
+                        <CheckboxInput label="비밀 댓글 (판매자와 나만 보기)" size="sm" value={isSecret} onChange={(checked) => setIsSecret(checked)} />
                     )}
-                    <Text type="supporting" color="secondary">
-                        {content.length} / {MAX_LENGTH}
-                    </Text>
                 </div>
                 <div className="flex gap-space-xs">
                     {onCancel && <Button label="취소" size="sm" variant="ghost" onClick={onCancel} />}
-                    <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} />
+                    <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} isLoading={disabled} />
                 </div>
             </div>
             {problem && <Text className="text-error text-caption">{problem}</Text>}
@@ -289,7 +283,7 @@ function Entry({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-space-sm">
-                {!entry.isDeleted && <Text weight="semibold">{entry.writerNickname}</Text>}
+                {!entry.isDeleted && <span className="font-body-lg text-body-lg font-semibold text-on-surface">{entry.writerNickname}</span>}
                 {isSellerReply && !entry.isDeleted && <Badge label="판매자" variant="blue" />}
                 {entry.isSecret && !entry.isDeleted && <Icon name="lock" className="text-[16px] text-on-surface-variant" />}
                 {!entry.isDeleted && (
@@ -301,7 +295,7 @@ function Entry({
                 {entry.isMine && !editing && (
                     <div className="ml-auto flex gap-space-xs">
                         <Button label="수정" size="sm" variant="ghost" isDisabled={busy} onClick={() => setEditing(true)} />
-                        <Button label="삭제" size="sm" variant="ghost" className="text-error" isDisabled={busy} onClick={() => void onDelete(entry.commentId)} />
+                        <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={() => void onDelete(entry.commentId)} />
                     </div>
                 )}
             </div>
