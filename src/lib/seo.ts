@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 
 // 공개 화면 SEO 공통 값. (로드맵 OPS-4)
 export const SITE_NAME = 'TEAMBUY';
+// 브랜드 색. 테마(src/theme/teambuy.css)의 밝은 화면 --color-accent · --color-on-accent 값과 맞춘다. 아이콘 · 공유 이미지에 쓴다.
+export const BRAND_COLOR = '#4f46e5';
+export const BRAND_ON_COLOR = '#ffffff';
 export const SITE_TITLE = 'TEAMBUY - 팀 스포츠 단체복 · 장비 공동구매';
 export const SITE_DESCRIPTION =
     '팀 유니폼 · 단체복과 스포츠 장비를 비교하고, 공동구매를 만들어 팀원별 옵션과 수량 주문을 한 번에 모으는 팀 스포츠 공동구매 플랫폼입니다.';
