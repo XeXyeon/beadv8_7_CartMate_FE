@@ -11,11 +11,12 @@ import { Text } from '@astryxdesign/core/Text';
 
 const funderLabels = { ADMIN: '플랫폼 부담', SELLER: '판매자 부담' } as const;
 
+// 두 조건이 함께 있을 때 어떻게 적용하는지. 뜻은 BE overlapPolicy 그대로, 문장만 짧게.
 const policyDescriptions = {
-    BOTH: '기준을 충족한 조건을 모두 적용합니다.',
-    LARGER: '기준을 충족한 조건 중 개당 금액이 큰 조건 하나만 적용합니다. 금액이 같으면 플랫폼 부담 조건을 적용합니다.',
-    ADMIN_ONLY: '플랫폼 부담 조건의 기준을 충족한 경우에만 플랫폼 부담 조건을 적용합니다. 판매자 부담 조건은 적용하지 않습니다.',
-    SELLER_ONLY: '판매자 부담 조건의 기준을 충족한 경우에만 판매자 부담 조건을 적용합니다. 플랫폼 부담 조건은 적용하지 않습니다.',
+    BOTH: '기준을 채운 조건을 모두 적용합니다.',
+    LARGER: '기준을 채운 조건 중 개당 금액이 큰 하나만 적용합니다. 같으면 플랫폼 부담 조건을 적용합니다.',
+    ADMIN_ONLY: '플랫폼 부담 조건만 적용합니다.',
+    SELLER_ONLY: '판매자 부담 조건만 적용합니다.',
 } as const;
 
 function validCondition(condition: PaybackConditionResponse, productId: number) {
@@ -56,25 +57,27 @@ export default function ProductPaybackConditions({ productId }: { productId: num
                     <ul className="mt-3 flex flex-col gap-2">
                         {ordered.map((condition) => (
                             <li key={condition.funder} className="rounded-lg border border-outline-variant bg-surface-container-lowest p-3">
-                                <Badge label={funderLabels[condition.funder!]} variant={condition.funder === 'ADMIN' ? 'blue' : 'teal'} />
-                                <Text display="block" className="mt-2">
-                                    공동구매 내 해당 상품 구매확정 수량이 {condition.minQuantity!.toLocaleString('ko-KR')}개 이상이면,
-                                    내 구매확정 수량 1개당 {condition.amountPerUnit!.toLocaleString('ko-KR')}원
+                                <div className="flex items-center justify-between gap-2">
+                                    <Text weight="bold" hasTabularNumbers>1개당 {condition.amountPerUnit!.toLocaleString('ko-KR')}원</Text>
+                                    <Badge label={funderLabels[condition.funder!]} variant={condition.funder === 'ADMIN' ? 'blue' : 'teal'} />
+                                </div>
+                                <Text display="block" type="supporting" color="secondary" className="mt-1">
+                                    공동구매에서 이 상품이 {condition.minQuantity!.toLocaleString('ko-KR')}개 이상 구매확정되면 내 구매확정 수량만큼
                                 </Text>
                             </li>
                         ))}
                     </ul>
                     {hasBoth && (
                         <Text display="block" color="secondary" className="mt-3">
-                            중복 조건: {policy in policyDescriptions
+                            두 조건이 겹치면 {policy in policyDescriptions
                                 ? policyDescriptions[policy]
                                 : '적용 방식은 현재 확인할 수 없습니다.'}
                         </Text>
                     )}
                 </>
             )}
-            <p className="mt-4 border-t border-outline-variant pt-3 font-caption text-caption text-secondary">
-                공동구매에 적용되는 조건은 상품이 처음 포함될 때 정해지며, 이후 변경한 조건과 다를 수 있습니다.
+            <p className="mt-3 font-caption text-caption text-secondary">
+                조건은 상품이 공동구매에 처음 담길 때 정해져, 이후 바뀐 조건과 다를 수 있습니다.
             </p>
             </Card>
         </section>
