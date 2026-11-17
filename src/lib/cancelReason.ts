@@ -39,6 +39,7 @@ export const ORDER_CANCEL_MESSAGE: Record<string, string> = {
     SALES_STOPPED: '판매자가 판매를 중지해 주문이 취소되었습니다.',
     GROUP_PURCHASE_CLOSED: '공동구매가 마감되어 주문이 취소되었습니다.',
     SELLER_CANCELED: '판매자 사정으로 모든 상품이 취소되었습니다.',
+    MULTIPLE_REASONS: '여러 사유로 모든 상품이 취소되었습니다. 상품별 사유를 확인하세요.',
 };
 
 // 공동 주문 전체가 취소된 사유. BE SharedGroupOrderCancelReason.
@@ -48,11 +49,13 @@ export const SHARED_ORDER_CANCEL_MESSAGE: Record<string, string> = {
     OUT_OF_STOCK: '재고가 부족해 취소되었습니다.',
     SALES_STOPPED: '판매자가 판매를 중지해 공동 주문이 취소되었습니다.',
     SELLER_CANCELED: '판매자 사정으로 모든 상품이 취소되었습니다.',
+    MULTIPLE_REASONS: '여러 사유로 모든 상품이 취소되었습니다.',
 };
 
 // 일부 상품만 취소된 주문의 안내 제목. 취소 사유가 섞여 있으면 판매자 사유를 앞세운다.
 export function partialCancelTitle(reasons: (string | undefined)[]): string {
     if (reasons.some(isSellerCancelReason)) return '일부 상품이 판매자 사정으로 취소되었습니다';
     if (reasons.includes('SALES_STOPPED')) return '일부 상품이 판매 중지로 취소되었습니다';
+    if (reasons.length > 0 && reasons.every((reason) => reason === 'BUYER_CANCELED')) return '일부 상품을 취소했습니다';
     return '일부 상품이 취소되었습니다';
 }

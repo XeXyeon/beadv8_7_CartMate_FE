@@ -32,8 +32,7 @@ export default function OrderStatus({ orderId }: { orderId: number }) {
     if (query.isPending) return <div className="h-64 bg-surface-container-low animate-pulse" aria-hidden />;
     if (!order) return <Notice message={errorMessage(query.error, '주문 정보를 불러오지 못했습니다.')} />;
 
-    // 취소 요청 중인 주문도 이미 결제가 끝났다. 결제 화면을 다시 보여 주지 않는다.
-    if (order.status === 'PAID' || order.status === 'CANCEL_REQUESTED') return <OrderPaid order={order} />;
+    if (order.status === 'PAID') return <OrderPaid order={order} />;
     if (order.status === 'CANCELED') return <OrderCanceled order={order} />;
     return <OrderPayment orderId={orderId} order={order} />;
 }

@@ -4,6 +4,7 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { DeliveryDetailItemResponseCancelReason } from './deliveryDetailItemResponseCancelReason';
 import type { DeliveryDetailOptionResponse } from './deliveryDetailOptionResponse';
 
 export interface DeliveryDetailItemResponse {
@@ -12,4 +13,6 @@ export interface DeliveryDetailItemResponse {
   productName?: string;
   quantity?: number;
   options?: DeliveryDetailOptionResponse[];
+  canceledAt?: string;
+  cancelReason?: DeliveryDetailItemResponseCancelReason;
 }

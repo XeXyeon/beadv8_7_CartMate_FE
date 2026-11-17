@@ -1,8 +1,15 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import { ROUTES } from '@/lib/routes';
+import { SITE_NAME, pageMetadata } from '@/lib/seo';
 import SearchResults from './_components/SearchResults';
 
-export const metadata: Metadata = { title: '검색 결과 | TEAMBUY' };
+// 검색어 · 페이지가 붙은 URL(/search?…)은 robots.txt에서 막고, 쿼리 없는 /search만 색인한다.
+export const metadata: Metadata = pageMetadata({
+    title: `상품 검색 - 팀 단체복 · 스포츠 장비 | ${SITE_NAME}`,
+    description: `${SITE_NAME}에서 판매 중인 팀 유니폼 · 단체복과 스포츠 장비를 검색하고, 판매자 신뢰도와 가격을 비교해 보세요.`,
+    path: ROUTES.search,
+});
 
 export default function SearchPage() {
     return (

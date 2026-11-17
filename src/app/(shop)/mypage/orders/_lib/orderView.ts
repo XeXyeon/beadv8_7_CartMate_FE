@@ -23,15 +23,14 @@ export const TAB_KINDS: Record<OrderTab, readonly OrderKind[]> = {
 
 export type StatusTone = 'pending' | 'done' | 'muted';
 
-// 개인 주문 상태 (PAYMENT_PENDING · PAID · CANCEL_REQUESTED · CANCELED)
+// 개인 주문 상태 (PAYMENT_PENDING · PAID · CANCELED). 상품 취소가 처리 중이어도 주문은 결제 완료 그대로다(상품마다 표시).
 export const ORDER_STATUS: Record<string, { label: string; tone: StatusTone }> = {
     PAYMENT_PENDING: { label: '결제 대기', tone: 'pending' },
     PAID: { label: '결제 완료', tone: 'done' },
-    CANCEL_REQUESTED: { label: '취소 요청 중', tone: 'pending' },
     CANCELED: { label: '주문 취소', tone: 'muted' },
 };
 
-// 결제 완료 주문 취소를 배송 서버가 거절한 이유. BE가 배송 오류 코드를 그대로 넘긴다(앞에 상태 코드가 붙을 수 있다).
+// 구매자 상품 취소를 배송 서버가 거절한 이유(상품마다). BE가 배송 오류 코드를 그대로 넘긴다(앞에 상태 코드가 붙을 수 있다).
 const CANCEL_REJECT_MESSAGE: Record<string, string> = {
     DELIVERY_NOT_CANCELABLE: '판매자가 이미 배송을 확인해 취소할 수 없습니다. 상품을 받은 뒤 교환 · 환불 요청으로 진행해 주세요.',
     DELIVERY_CANCEL_DELAYED: '취소 요청이 처리되기 전에 상품이 발송되었습니다. 상품을 받은 뒤 교환 · 환불 요청으로 진행해 주세요.',

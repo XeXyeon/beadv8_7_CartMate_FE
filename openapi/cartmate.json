@@ -2782,84 +2782,12 @@
         }
       }
     },
-    "/api/claims/{claimId}/reject": {
-      "patch": {
-        "tags": [
-          "claim-controller"
-        ],
-        "operationId": "rejectClaim",
-        "parameters": [
-          {
-            "name": "claimId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeliveryClaimRejectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/RsDataSellerClaimResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/claims/{claimId}/complete": {
       "patch": {
         "tags": [
           "claim-controller"
         ],
         "operationId": "completeClaim",
-        "parameters": [
-          {
-            "name": "claimId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/RsDataSellerClaimResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/claims/{claimId}/approve": {
-      "patch": {
-        "tags": [
-          "claim-controller"
-        ],
-        "operationId": "approveClaim",
         "parameters": [
           {
             "name": "claimId",
@@ -3180,6 +3108,8 @@
               "items": {
                 "type": "string",
                 "enum": [
+                  "VERIFYING",
+                  "NOT_ACCEPTED",
                   "REQUESTED",
                   "APPROVED",
                   "REJECTED",
@@ -3349,6 +3279,15 @@
                 "schema": {
                   "$ref": "#/components/schemas/RsDataVoid"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCancelRequest"
               }
             }
           }
@@ -4874,6 +4813,144 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/RsDataDeliveryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/cancel-preview": {
+      "get": {
+        "tags": [
+          "order-controller"
+        ],
+        "summary": "고른 상품을 취소하면 돌려받을 예상 환불 금액과 쿠폰 반환 여부",
+        "operationId": "cancelPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "orderItemIds",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataOrderCancelPreviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/claims/{claimId}/decide": {
+      "patch": {
+        "tags": [
+          "claim-controller"
+        ],
+        "operationId": "decideClaim",
+        "parameters": [
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryClaimDecideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataSellerClaimResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/return-preview": {
+      "get": {
+        "tags": [
+          "order-controller"
+        ],
+        "summary": "고른 상품을 반품하면 돌려받을 예상 환불 금액 (판매자 탓 사유면 sellerFault=true)",
+        "operationId": "returnPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "orderItemIds",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          {
+            "name": "sellerFault",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataOrderReturnPreviewResponse"
                 }
               }
             }
@@ -8768,16 +8845,10 @@
           "deliveryItemId": {
             "type": "integer",
             "format": "int64"
-          },
-          "quantity": {
-            "type": "integer",
-            "format": "int64",
-            "exclusiveMinimum": 0
           }
         },
         "required": [
-          "deliveryItemId",
-          "quantity"
+          "deliveryItemId"
         ]
       },
       "DeliveryClaimCreateRequest": {
@@ -8841,6 +8912,16 @@
           "quantity": {
             "type": "integer",
             "format": "int64"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "rejectReason": {
+            "type": "string"
           }
         }
       },
@@ -8875,12 +8956,14 @@
           "detail": {
             "type": "string"
           },
-          "rejectReason": {
+          "notAcceptedCode": {
             "type": "string"
           },
           "status": {
             "type": "string",
             "enum": [
+              "VERIFYING",
+              "NOT_ACCEPTED",
               "REQUESTED",
               "APPROVED",
               "REJECTED",
@@ -8899,6 +8982,9 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "partiallyApproved": {
+            "type": "boolean"
           },
           "items": {
             "type": "array",
@@ -9010,19 +9096,6 @@
           "trackingNumber"
         ]
       },
-      "DeliveryClaimRejectRequest": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          }
-        },
-        "required": [
-          "reason"
-        ]
-      },
       "RsDataSellerClaimResponse": {
         "type": "object",
         "properties": {
@@ -9079,12 +9152,14 @@
           "detail": {
             "type": "string"
           },
-          "rejectReason": {
+          "notAcceptedCode": {
             "type": "string"
           },
           "status": {
             "type": "string",
             "enum": [
+              "VERIFYING",
+              "NOT_ACCEPTED",
               "REQUESTED",
               "APPROVED",
               "REJECTED",
@@ -9103,6 +9178,9 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "partiallyApproved": {
+            "type": "boolean"
           },
           "items": {
             "type": "array",
@@ -9252,6 +9330,20 @@
             "items": {
               "$ref": "#/components/schemas/DeliveryDetailOptionResponse"
             }
+          },
+          "canceledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelReason": {
+            "type": "string",
+            "enum": [
+              "BUYER_CANCELED",
+              "SALES_STOPPED",
+              "SELLER_OUT_OF_STOCK",
+              "SELLER_PRODUCT_ISSUE",
+              "SELLER_OTHER"
+            ]
           }
         }
       },
@@ -10639,6 +10731,14 @@
               "SELLER_PRODUCT_ISSUE",
               "SELLER_OTHER"
             ]
+          },
+          "cancelInProgress": {
+            "type": "boolean",
+            "description": "구매자 취소 요청이 처리 중인 상품이면 true"
+          },
+          "cancelRejectCode": {
+            "type": "string",
+            "description": "가장 최근 구매자 취소 요청에서 거절된 상품이면 거절 코드. 그 뒤 다시 요청했으면 null"
           }
         }
       },
@@ -10668,8 +10768,7 @@
             "enum": [
               "PAYMENT_PENDING",
               "PAID",
-              "CANCELED",
-              "CANCEL_REQUESTED"
+              "CANCELED"
             ]
           },
           "cancelReason": {
@@ -10680,11 +10779,9 @@
               "OUT_OF_STOCK",
               "SALES_STOPPED",
               "GROUP_PURCHASE_CLOSED",
-              "SELLER_CANCELED"
+              "SELLER_CANCELED",
+              "MULTIPLE_REASONS"
             ]
-          },
-          "cancelRejectCode": {
-            "type": "string"
           },
           "totalAmount": {
             "type": "integer",
@@ -10757,8 +10854,7 @@
             "enum": [
               "PAYMENT_PENDING",
               "PAID",
-              "CANCELED",
-              "CANCEL_REQUESTED"
+              "CANCELED"
             ]
           },
           "totalAmount": {
@@ -11353,7 +11449,8 @@
               "OUT_OF_STOCK",
               "CREATOR_CANCELED",
               "SALES_STOPPED",
-              "SELLER_CANCELED"
+              "SELLER_CANCELED",
+              "MULTIPLE_REASONS"
             ]
           },
           "creator": {
@@ -11736,11 +11833,129 @@
               "SELLER_PRODUCT_ISSUE",
               "SELLER_OTHER"
             ]
+          },
+          "deliveryItemIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "minItems": 1
           }
         },
         "required": [
-          "cancelReason"
+          "cancelReason",
+          "deliveryItemIds"
         ]
+      },
+      "OrderCancelRequest": {
+        "type": "object",
+        "properties": {
+          "orderItemIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "OrderCancelPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "refundAmount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "couponReturned": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RsDataOrderCancelPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "resultCode": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrderCancelPreviewResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DeliveryClaimDecideItemRequest": {
+        "type": "object",
+        "properties": {
+          "deliveryItemId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "rejectReason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "deliveryItemId",
+          "result"
+        ]
+      },
+      "DeliveryClaimDecideRequest": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryClaimDecideItemRequest"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "OrderReturnPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "refundAmount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RsDataOrderReturnPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "resultCode": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrderReturnPreviewResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       }
     }
   }

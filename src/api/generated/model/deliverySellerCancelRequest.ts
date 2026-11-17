@@ -8,4 +8,6 @@ import type { DeliverySellerCancelRequestCancelReason } from './deliverySellerCa
 
 export interface DeliverySellerCancelRequest {
   cancelReason: DeliverySellerCancelRequestCancelReason;
+  /** @minItems 1 */
+  deliveryItemIds: number[];
 }

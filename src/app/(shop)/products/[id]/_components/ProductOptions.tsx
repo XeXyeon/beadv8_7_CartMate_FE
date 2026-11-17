@@ -1,6 +1,8 @@
 'use client';
 
 import { formatPrice, isOptionAvailable, type InventoryChoice, type ProductOption } from '@/lib/salesPost';
+import { IconButton } from '@astryxdesign/core/IconButton';
+import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList';
 import { Text } from '@astryxdesign/core/Text';
 import Icon from '@/components/ui/Icon';
 
@@ -50,55 +52,34 @@ export default function ProductOptions({
     return (
         <>
             <div className="flex flex-col gap-2 pt-1">
-                <div className="flex items-center justify-between">
-                    <Text weight="semibold">상품 선택</Text>
-                    {selected && <Text type="supporting" color="secondary">선택: {selected.name}</Text>}
-                </div>
-                <div className="flex flex-col gap-space-xs" role="radiogroup" aria-label="상품 선택">
+                <RadioList label="상품 선택" value={selectedId === null ? '' : String(selectedId)} onChange={(value) => onSelect(Number(value))} isDisabled={disabled}>
                     {products.map((product) => {
-                        const active = product.id === selectedId;
-                        const unavailable = disabled || !product.onSale;
                         const wishLocked = wishPendingId === product.id || (!canWish && !product.wished);
                         return (
-                            <div key={product.id} className="flex items-stretch gap-space-xs">
-                                <button
-                                    className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-left font-label-sm text-label-sm transition-colors ${
-                                        active
-                                            ? 'border-2 border-primary bg-primary-container text-primary font-bold'
-                                            : 'border border-outline-variant bg-surface-container-lowest text-on-surface hover:border-outline'
-                                    } disabled:cursor-not-allowed disabled:opacity-60`}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={active}
-                                    disabled={unavailable}
-                                    onClick={() => onSelect(product.id)}
-                                >
-                                    <span>
-                                        {product.name}
-                                        {!product.onSale && <span className="ml-space-xs font-caption text-caption text-error">판매 중지</span>}
+                            <RadioListItem
+                                key={product.id}
+                                value={String(product.id)}
+                                label={product.name}
+                                description={product.onSale ? undefined : <span className="text-error">판매 중지</span>}
+                                isDisabled={!product.onSale}
+                                endContent={
+                                    <span className="flex items-center gap-space-xs">
+                                        <Text weight="semibold" hasTabularNumbers>{product.price === null ? '가격 문의' : formatPrice(product.price)}</Text>
+                                        {/* 행 안의 버튼 누름은 라디오 선택으로 넘어가지 않는다. 판매 중지 상품(비활성 행)도 찜할 수 있다 */}
+                                        <IconButton
+                                            label={product.wished ? `${product.name} 찜 해제` : `${product.name} 찜하기`}
+                                            variant="ghost"
+                                            icon={<Icon name="favorite" filled={product.wished} className={product.wished ? 'text-error' : 'text-on-surface-variant'} />}
+                                            isDisabled={wishLocked}
+                                            tooltip={wishLocked && wishPendingId !== product.id ? '판매 중이거나 판매 중지된 상품만 찜할 수 있습니다' : undefined}
+                                            onClick={() => onToggleWish(product)}
+                                        />
                                     </span>
-                                    <span>{product.price === null ? '가격 문의' : formatPrice(product.price)}</span>
-                                </button>
-                                {/* 상품 선택 버튼 안에 버튼을 넣을 수 없어 옆에 따로 둔다 */}
-                                <button
-                                    className="flex w-12 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest hover:border-outline disabled:cursor-not-allowed disabled:opacity-60"
-                                    type="button"
-                                    aria-pressed={product.wished}
-                                    aria-label={product.wished ? `${product.name} 찜 해제` : `${product.name} 찜하기`}
-                                    title={wishLocked && wishPendingId !== product.id ? '판매 중이거나 판매 중지된 상품만 찜할 수 있습니다' : undefined}
-                                    disabled={wishLocked}
-                                    onClick={() => onToggleWish(product)}
-                                >
-                                    <Icon
-                                        name="favorite"
-                                        filled={product.wished}
-                                        className={`text-[22px] ${product.wished ? 'text-error' : 'text-on-surface-variant'}`}
-                                    />
-                                </button>
-                            </div>
+                                }
+                            />
                         );
                     })}
-                </div>
+                </RadioList>
                 {wishError && (
                     <p className="font-body-sm text-body-sm text-error" role="alert">
                         {wishError}
@@ -142,37 +123,18 @@ export default function ProductOptions({
                 </div>
             )}
 
-            <div className="my-1 flex flex-wrap items-center justify-between gap-3 border-y border-outline-variant py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <Text weight="semibold">수량 선택</Text>
                 <div className="flex items-center gap-space-md">
-                    <div className="flex items-center overflow-hidden rounded-lg border border-outline bg-surface-container-lowest">
-                        <button
-                            className="w-8 h-8 flex items-center justify-center font-bold text-on-surface hover:bg-surface-container-low disabled:opacity-40"
-                            type="button"
-                            aria-label="수량 줄이기"
-                            disabled={quantityLocked || quantity <= 1}
-                            onClick={() => onQuantityChange(quantity - 1)}
-                        >
-                            -
-                        </button>
-                        <input
-                            className="w-10 h-8 text-center font-label-md text-label-md bg-transparent border-x border-outline focus:outline-none"
-                            readOnly
-                            type="text"
-                            aria-label="수량"
-                            value={quantity}
-                        />
-                        <button
-                            className="w-8 h-8 flex items-center justify-center font-bold text-on-surface hover:bg-surface-container-low disabled:opacity-40"
-                            type="button"
-                            aria-label="수량 늘리기"
-                            disabled={quantityLocked || quantity >= maxQuantity}
-                            onClick={() => onQuantityChange(quantity + 1)}
-                        >
-                            +
-                        </button>
+                    <div className="flex items-center gap-1">
+                        <IconButton label="수량 줄이기" variant="secondary" size="lg" icon={<Icon name="remove" />} isDisabled={quantityLocked || quantity <= 1} onClick={() => onQuantityChange(quantity - 1)} />
+                        <span className="w-12 text-center" aria-live="polite" aria-label={`수량 ${quantity}개`}>
+                            <Text weight="semibold" hasTabularNumbers>{quantity}</Text>
+                        </span>
+                        <IconButton label="수량 늘리기" variant="secondary" size="lg" icon={<Icon name="add" />} isDisabled={quantityLocked || quantity >= maxQuantity} onClick={() => onQuantityChange(quantity + 1)} />
                     </div>
-                    <div className="text-right min-w-[120px]">
+                    {/* 모바일은 하단 바(ProductActions)가 합계를 보여 주므로 lg 이상에서만 그린다 */}
+                    <div className="hidden min-w-[120px] text-right lg:block">
                         <span className="font-caption text-caption text-secondary block">합계</span>
                         <span className="font-headline-sm text-headline-sm text-on-surface font-bold">
                             {inventory == null || unitPrice == null ? '-' : formatPrice(unitPrice * quantity)}

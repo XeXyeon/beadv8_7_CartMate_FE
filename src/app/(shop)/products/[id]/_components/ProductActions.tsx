@@ -10,23 +10,25 @@ import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { useCurrentUser } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
+import { formatPrice } from '@/lib/salesPost';
 
 type Props = {
     postId: number;
     inventoryId: number | null; // 고른 상품 · 옵션 조합의 재고. 아직 다 고르지 않았으면 null
     available: number; // 그 재고의 구매 가능 수량
-    needsOption: boolean; // 옵션을 아직 다 고르지 않음
     quantity: number;
     onSale: boolean;
+    // 고른 재고 · 수량의 합계. 모바일 하단 바에 보여 준다. 옵션을 다 고르지 않았거나 가격 문의면 null
+    total: number | null;
 };
 
 // 상품 상세의 구매 버튼 영역.
 // - 장바구니 담기: 고른 상품 · 옵션 조합의 재고(inventoryId)를 담는다. 옵션을 다 고르지 않았거나 품절이면 막는다
 // - 바로 구매: 주문서 연동(ORD-1) 전이라 비활성
-export default function ProductActions({ postId, inventoryId, available, needsOption, quantity, onSale }: Props) {
+export default function ProductActions({ postId, inventoryId, available, quantity, onSale, total }: Props) {
     const router = useRouter();
     const queryClient = useQueryClient();
-    const { isLoggedIn } = useCurrentUser();
+    const { isLoggedIn, isLoading: userLoading } = useCurrentUser();
     const addToCart = useAddItem1({
         mutation: {
             // 헤더의 장바구니 개수 등이 바로 갱신되도록 장바구니 조회를 다시 불러온다.
@@ -44,6 +46,8 @@ export default function ProductActions({ postId, inventoryId, available, needsOp
 
     const handleAddToCart = () => {
         if (inventoryId === null) return;
+        // 로그인 확인 전(서버 렌더 화면을 이어받는 중 포함)에는 로그인 화면으로 보내지 않는다
+        if (userLoading) return;
         if (!isLoggedIn) {
             router.push(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.product(postId))}`);
             return;
@@ -52,8 +56,14 @@ export default function ProductActions({ postId, inventoryId, available, needsOp
     };
 
     return (
-        <div className="flex flex-col gap-3 pt-1">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        // 모바일(lg 미만)은 화면 하단에 붙는 바(sticky), 데스크톱은 합계 아래 일반 흐름. 버튼 · 메시지는 한 벌만 그린다.
+        // fixed가 아니라 sticky라서 상품 정보 열이 끝나면 바도 함께 빠져 푸터를 가리지 않는다.
+        <div className="sticky bottom-0 z-30 -mx-4 flex flex-col gap-2 bg-surface-container-lowest px-4 pb-4 pt-3 shadow-lg sm:-mx-6 sm:px-6 lg:static lg:z-auto lg:mx-0 lg:bg-transparent lg:p-0 lg:pt-1 lg:shadow-none">
+            <div className="flex items-baseline justify-between lg:hidden">
+                <Text type="supporting" color="secondary">합계</Text>
+                <Text weight="bold" hasTabularNumbers>{total === null ? '-' : formatPrice(total)}</Text>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
                 <Button
                     label="장바구니 담기"
                     variant="secondary"
@@ -81,7 +91,6 @@ export default function ProductActions({ postId, inventoryId, available, needsOp
                 </p>
             )}
             {!onSale && <Text type="supporting" color="secondary">현재 판매하지 않는 상품은 구매할 수 없습니다.</Text>}
-            {onSale && needsOption && <Text type="supporting" color="secondary">옵션을 모두 고르면 장바구니에 담을 수 있습니다.</Text>}
             {onSale && soldOut && <Text type="supporting" className="text-error">품절된 옵션입니다. 다른 옵션을 골라 주세요.</Text>}
         </div>
     );
