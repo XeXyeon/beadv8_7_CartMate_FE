@@ -143,9 +143,9 @@ function ItemRow({ item, deliveryStatus, selectable, picked, showBlockedNote, on
                     </span>
                 )}
                 <div className="min-w-0 flex flex-col">
-                    <Text weight="bold" maxLines={1} color={canceled ? 'disabled' : 'primary'} hasStrikethrough={canceled}>
+                    <span className={`line-clamp-1 font-body-lg text-body-lg font-semibold ${canceled ? 'text-on-surface-variant line-through' : 'text-on-surface'}`}>
                         {item.productName}
-                    </Text>
+                    </span>
                     <Text type="supporting">
                         {item.optionName && `옵션: ${item.optionName} · `}
                         {formatPrice(item.unitPrice ?? 0)} × {item.quantity}개
