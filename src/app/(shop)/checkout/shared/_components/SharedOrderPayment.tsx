@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ import { getGetBySharedGroupOrderQueryKey, useGetBySharedGroupOrder } from '@/ap
 import {
     getGetDetail3QueryKey,
     getGetMyList3QueryKey,
+    useCancel2,
     useGetDetail3,
     usePaySharedGroupOrder,
 } from '@/api/generated/shared-group-order-controller/shared-group-order-controller';
@@ -66,6 +67,8 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
     const current = address ?? defaults;
 
     const [agreed, setAgreed] = useState(false);
+    // 취소 요청이 나간 뒤에는 결제를 막는다. 방장이 마지막 미결제자면 결제가 먼저 처리돼 되돌릴 수 없는 확정이 될 수 있다.
+    const [canceling, setCanceling] = useState(false);
 
     const pay = usePaySharedGroupOrder({
         mutation: {
@@ -91,7 +94,7 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
 
     const addressValid = !needsAddress || isValidAddress(current);
     const busy = pay.isPending || pay.isSuccess;
-    const canPay = !deadlinePassed && sufficient && addressValid && agreed && !busy && !wallet.isPending;
+    const canPay = !deadlinePassed && sufficient && addressValid && agreed && !busy && !canceling && !wallet.isPending;
 
     const submit = () => {
         pay.mutate({
@@ -201,6 +204,7 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
                 onClick={submit}
                 icon={<Icon name="account_balance_wallet" className="text-[18px]" />}
             />
+            <CreatorCancel orderId={orderId} order={order} disabled={busy} onBusyChange={setCanceling} />
         </StatusCard>
     );
 }
@@ -220,7 +224,83 @@ function SharedWaiting({ order }: { order: SharedGroupOrderDetailResponse }) {
             </OrderSummary>
             <Participants order={order} />
             <BackToGroupPurchase order={order} />
+            {order.id !== undefined && <CreatorCancel orderId={order.id} order={order} />}
         </StatusCard>
+    );
+}
+
+// ===== 만든 사람의 공동 주문 취소 =====
+// 결제 중(PAYING)일 때만 만든 사람이 취소할 수 있다(BE도 같은 규칙으로 막는다). 확정 뒤에는 이 화면에 오지 않는다.
+// 취소하면 결제한 참여자 분담금은 결제 서버가 예치금으로 환불하고, 상세를 다시 받으면 이 화면이 취소 화면으로 바뀐다.
+function CreatorCancel({
+    orderId,
+    order,
+    disabled = false,
+    onBusyChange,
+}: {
+    orderId: number;
+    order: SharedGroupOrderDetailResponse;
+    disabled?: boolean;
+    // 취소 요청이 나가면 true, 실패하면 false. 성공하면 화면이 취소 화면으로 바뀌므로 true로 둔다.
+    onBusyChange?: (busy: boolean) => void;
+}) {
+    const queryClient = useQueryClient();
+    // isPending은 다음 렌더에야 바뀌어 같은 렌더 안의 연속 클릭을 못 막으므로 ref로도 막는다
+    const inFlightRef = useRef(false);
+    const cancel = useCancel2({
+        mutation: {
+            onError: () => {
+                onBusyChange?.(false);
+            },
+            onSettled: () => {
+                inFlightRef.current = false;
+                // 성공이면 취소 화면으로, 실패(이미 확정·취소됨 등)면 지금 상태로 화면을 맞춘다.
+                for (const queryKey of [
+                    getGetDetail3QueryKey(orderId),
+                    getGetMyList3QueryKey(),
+                    getGetMyWalletQueryKey(),
+                    getGetMyWalletTransactionsQueryKey(),
+                    getGetBySharedGroupOrderQueryKey(orderId),
+                ]) {
+                    void queryClient.invalidateQueries({ queryKey });
+                }
+            },
+        },
+    });
+
+    if (order.creator !== true || order.status !== 'PAYING') return null;
+
+    const busy = cancel.isPending || cancel.isSuccess;
+
+    const submit = () => {
+        if (busy || inFlightRef.current) return;
+        // 결제 인원은 화면을 연 뒤에도 바뀔 수 있어 숫자 없이 안내한다. 환불은 BE가 실제 결제 건 기준으로 한다.
+        if (!window.confirm('공동 주문을 취소할까요?\n이미 결제한 참여자의 분담금은 예치금으로 환불됩니다.\n취소한 공동 주문은 되돌릴 수 없습니다.')) return;
+        inFlightRef.current = true;
+        onBusyChange?.(true);
+        cancel.mutate({ id: orderId });
+    };
+
+    return (
+        <div className="flex flex-col gap-space-xs border-t border-outline-variant pt-space-md">
+            <p className="font-caption text-caption text-secondary">
+                만든 사람은 결제가 끝나기 전까지 공동 주문을 취소할 수 있습니다. 결제한 참여자의 분담금은 예치금으로 환불됩니다.
+            </p>
+            {cancel.isError && (
+                <p className="font-body-sm text-body-sm text-error" role="alert">
+                    {cancelErrorMessage(cancel.error)}
+                </p>
+            )}
+            <Button
+                label={busy ? '취소하는 중...' : '공동 주문 취소'}
+                className="w-full"
+                variant="secondary"
+                isLoading={cancel.isPending}
+                isDisabled={disabled || busy}
+                onClick={submit}
+                icon={<Icon name="cancel" className="text-[18px]" />}
+            />
+        </div>
     );
 }
 
@@ -441,4 +521,11 @@ function payErrorMessage(error: unknown): string {
     if (code?.endsWith('ORDER_TEAM_ADDRESS_REQUIRED')) return '만든 사람은 팀 배송지를 입력해야 결제할 수 있습니다.';
     if (code?.endsWith('ORDER_NOT_PAYABLE')) return '결제할 수 없는 상태입니다. 결제 기한이 지났거나 이미 처리된 공동 주문입니다.';
     return errorMessage(error, '결제 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.');
+}
+
+function cancelErrorMessage(error: unknown): string {
+    const code = error instanceof ApiError ? error.resultCode : undefined;
+    if (code?.endsWith('ORDER_NOT_PAYING')) return '결제 중인 공동 주문만 취소할 수 있습니다. 이미 확정되었거나 취소된 주문입니다.';
+    if (code?.endsWith('ORDER_CREATOR_ONLY')) return '공동 주문을 만든 사람만 취소할 수 있습니다.';
+    return errorMessage(error, '공동 주문을 취소하지 못했습니다. 잠시 후 다시 시도해주세요.');
 }
