@@ -11,9 +11,9 @@ import { useSearchSalesPosts } from '@/api/generated/sales-post-search-controlle
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
+import { toSearchCard } from '../_lib/searchCard';
 import { hasFilters, readSearchState, searchHref, toApiParams, type SearchState } from '../_lib/searchParams';
 import SalesPostCard, { SalesPostCardSkeleton } from '../../_components/SalesPostCard';
-import { toSalesPostCardWithTrust } from '../../_components/SellerTrust';
 import { SearchFilters, SearchSortBar, type ChangeSearch } from './SearchFilters';
 
 const PAGE_SIZE = 12;
@@ -37,7 +37,7 @@ export default function SearchResults() {
     // 조건을 바꾸면 첫 페이지부터 다시 본다
     const changeSearch: ChangeSearch = (patch) => router.push(searchHref({ ...state, ...patch, page: 1 }), { scroll: false });
     const result = query.data?.data;
-    const cards = (result?.content ?? []).map(toSalesPostCardWithTrust).filter((item) => item !== null);
+    const cards = (result?.content ?? []).map((post) => toSearchCard(post, state)).filter((item) => item !== null);
     const totalPages = result?.totalPages ?? 0;
 
     return (
