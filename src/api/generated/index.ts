@@ -25,6 +25,7 @@ export * from './payment-controller/payment-controller';
 export * from './payout-controller/payout-controller';
 export * from './product-controller/product-controller';
 export * from './sales-post-controller/sales-post-controller';
+export * from './sales-post-search-controller/sales-post-search-controller';
 export * from './seller-controller/seller-controller';
 export * from './seller-trust-controller/seller-trust-controller';
 export * from './shared-group-order-controller/shared-group-order-controller';
