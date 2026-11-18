@@ -279,6 +279,8 @@ export * from './rsDataWalletTransactionSummaryResponse';
 export * from './rsDataWalletWithdrawOrderResponse';
 export * from './rsDataWithdrawalCheckResponse';
 export * from './salesPostSanctionRequest';
+export * from './searchSalesPostsParams';
+export * from './searchSalesPostsSort';
 export * from './selectProductImage';
 export * from './selectProductImageStatus';
 export * from './selectProductOption';
