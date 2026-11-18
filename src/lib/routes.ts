@@ -36,6 +36,8 @@ export const ROUTES = {
     myWishes: '/mypage/wishes',
     deposit: '/mypage/deposit',
     depositCharge: '/mypage/deposit/charge',
+    depositChargeSuccess: '/mypage/deposit/charge/success',
+    depositChargeFail: '/mypage/deposit/charge/fail',
     depositHistory: '/mypage/deposit/history',
     profile: '/mypage/profile',
     addresses: '/mypage/addresses',
