@@ -13,8 +13,13 @@ export default function DepositPage() {
     return (
         <MyPageShell
             title="예치금 관리"
-            description="예치금 잔액과 최근 거래 내역을 확인합니다. 출금 신청은 준비 중입니다."
-            headerActions={<Button label="충전하기" href={ROUTES.depositCharge} variant="primary" />}
+            description="예치금 잔액과 최근 거래 내역을 확인하고, 충전하거나 출금합니다."
+            headerActions={
+                <div className="flex gap-2">
+                    <Button label="출금하기" href={ROUTES.depositWithdraw} variant="secondary" />
+                    <Button label="충전하기" href={ROUTES.depositCharge} variant="primary" />
+                </div>
+            }
         >
             <div className="flex w-full flex-col gap-6">
                 {/* 잔액: 주소와 무관하게 로그인한 회원의 지갑을 조회한다 */}
