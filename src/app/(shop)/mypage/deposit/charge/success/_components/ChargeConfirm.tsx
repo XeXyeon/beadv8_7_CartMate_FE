@@ -42,7 +42,7 @@ export default function ChargeConfirm() {
             })
             .catch((e: unknown) => {
                 const message = chargeConfirmErrorMessage(e);
-                setState(isProcessing(e) ? { kind: 'processing', message } : { kind: 'failed', message });
+                setState(isUnknownResult(e) ? { kind: 'processing', message } : { kind: 'failed', message });
             });
     }, [valid, orderNumber, paymentKey, amount, queryClient]);
 
@@ -93,15 +93,18 @@ export default function ChargeConfirm() {
     );
 }
 
-function isProcessing(error: unknown): boolean {
-    return error instanceof ApiError && !!error.resultCode?.endsWith('WALLET_CHARGE_PAYMENT_PROCESSING');
+// 승인 결과를 모르는 경우. 결제사에서 이미 승인됐을 수 있으므로 다시 결제하라고 하지 않고 내역을 확인하게 한다.
+function isUnknownResult(error: unknown): boolean {
+    if (!(error instanceof ApiError)) return true;
+    return error.status === 0 || error.status >= 500
+        || !!error.resultCode?.endsWith('WALLET_CHARGE_PAYMENT_PROCESSING');
 }
 
 export function chargeConfirmErrorMessage(error: unknown): string {
-    const code = error instanceof ApiError ? error.resultCode : undefined;
-    if (code?.endsWith('WALLET_CHARGE_PAYMENT_PROCESSING')) {
+    if (isUnknownResult(error)) {
         return '결제 승인 결과를 확인하고 있습니다. 잠시 후 예치금 내역에서 충전 여부를 확인해주세요.';
     }
+    const code = error instanceof ApiError ? error.resultCode : undefined;
     if (code?.endsWith('WALLET_CHARGE_PAYMENT_REJECTED')) {
         return '결제가 승인되지 않았습니다. 다른 결제수단으로 다시 시도해주세요.';
     }

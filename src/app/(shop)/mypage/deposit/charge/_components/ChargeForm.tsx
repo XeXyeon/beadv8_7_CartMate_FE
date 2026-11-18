@@ -50,10 +50,11 @@ export default function ChargeForm() {
     }, []);
 
     // 위젯에 보이는 금액(할부 가능 여부 등)을 입력과 맞춘다. 규칙을 벗어난 값은 결제할 수 없으므로 반영하지 않는다.
+    // 결제 중에는 충전 주문 금액과 위젯 금액이 어긋나지 않도록 바꾸지 않는다.
     useEffect(() => {
-        if (widgetState !== 'ready' || amount === null || amountError) return;
-        void widgetsRef.current?.setAmount({ currency: 'KRW', value: amount });
-    }, [amount, amountError, widgetState]);
+        if (widgetState !== 'ready' || submitting || amount === null || amountError) return;
+        widgetsRef.current?.setAmount({ currency: 'KRW', value: amount }).catch(() => undefined);
+    }, [amount, amountError, widgetState, submitting]);
 
     async function handlePay() {
         const widgets = widgetsRef.current;
@@ -98,6 +99,7 @@ export default function ChargeForm() {
                             label={formatPrice(preset)}
                             size="sm"
                             variant={amount === preset ? 'primary' : 'secondary'}
+                            isDisabled={submitting}
                             onClick={() => setAmount(preset)}
                         />
                     ))}
@@ -106,6 +108,7 @@ export default function ChargeForm() {
                     id="charge-amount"
                     className={INPUT_CLASS}
                     inputMode="numeric"
+                    disabled={submitting}
                     value={amount === null ? '' : amount.toLocaleString('ko-KR')}
                     onChange={(e) => {
                         const digits = e.target.value.replace(/[^0-9]/g, '');
