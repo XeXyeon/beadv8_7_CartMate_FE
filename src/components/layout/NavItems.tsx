@@ -5,6 +5,8 @@ export type NavItem = {
     label: string;
     href: string;
     icon?: string;
+    /** 이 메뉴를 활성으로 볼 다른 경로(하위 경로 포함). 예: "주문/배송 조회"는 배송 조회 · 교환·환불 내역에서도 활성 */
+    also?: string[];
 };
 
 export type NavItemsProps = {
@@ -35,8 +37,12 @@ export default function NavItems({
         pathname === null
             ? undefined
             : items
-                  .filter((item) => isActive(pathname, item.href, exactHref))
-                  .reduce<string | undefined>((best, item) => (!best || item.href.length > best.length ? item.href : best), undefined);
+                  .flatMap((item) =>
+                      [item.href, ...(item.also ?? [])]
+                          .filter((path) => isActive(pathname, path, exactHref))
+                          .map((path) => ({ href: item.href, length: path.length })),
+                  )
+                  .reduce<{ href: string; length: number } | undefined>((best, match) => (!best || match.length > best.length ? match : best), undefined)?.href;
     return items.map((item) => {
         const active = item.href === activeHref;
         return (

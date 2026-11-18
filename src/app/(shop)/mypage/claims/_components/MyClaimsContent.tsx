@@ -163,7 +163,7 @@ function ClaimCard({ claim, delivery, highlight }: { claim: DeliveryClaimRespons
             <div className="flex flex-wrap items-center justify-between gap-space-sm">
                 <div className="flex flex-wrap items-center gap-space-sm">
                     <span className="font-label-md text-label-md text-on-surface font-bold">요청 #{claim.claimId}</span>
-                    <Badge label={CLAIM_TYPE_LABEL[claim.claimType ?? ''] ?? claim.claimType ?? '-'} variant={refund ? 'purple' : 'blue'} />
+                    <span className="font-body-sm text-body-sm text-on-surface-variant">{CLAIM_TYPE_LABEL[claim.claimType ?? ''] ?? claim.claimType ?? '-'}</span>
                     <span data-testid="claim-status"><Badge label={statusLabel} variant={badgeVariant} /></span>
                 </div>
                 <span className="font-caption text-caption text-outline">신청 {formatDateTime(claim.createdAt)}</span>
@@ -187,10 +187,11 @@ function ClaimCard({ claim, delivery, highlight }: { claim: DeliveryClaimRespons
             <ul className="flex flex-col gap-1 font-body-sm text-body-sm">
                 {(claim.items ?? []).map((item) => (
                     <li key={item.deliveryItemId} className="text-on-surface" data-item-result={item.result}>
-                        <span className="inline-flex flex-wrap items-center gap-space-xs">
+                        {/* 상품별 결과는 배지 대신 작은 색 글자로 붙인다. 카드에서 색 배지는 요청 상태 하나만 쓴다. */}
+                        <span>
                             {item.productName ?? `상품 #${item.orderItemId}`} <span className="text-on-surface-variant">× {item.quantity}개</span>
-                            {item.result === 'APPROVED' && <Badge label="승인" variant="success" />}
-                            {item.result === 'REJECTED' && <Badge label="거절" variant="red" />}
+                            {item.result === 'APPROVED' && <span className="font-caption text-caption text-[var(--color-text-success)] whitespace-nowrap"> · 승인</span>}
+                            {item.result === 'REJECTED' && <span className="font-caption text-caption text-error whitespace-nowrap"> · 거절</span>}
                         </span>
                         {item.result === 'REJECTED' && item.rejectReason && <div className="font-caption text-caption text-on-surface-variant">판매자 거절 사유: {item.rejectReason}</div>}
                     </li>
@@ -208,8 +209,11 @@ function ClaimCard({ claim, delivery, highlight }: { claim: DeliveryClaimRespons
                 <ol className="flex items-center gap-space-xs font-caption text-caption" aria-label="진행 단계">
                     {STEPS.map((step, i) => (
                         <li key={step} className="flex items-center gap-space-xs">
-                            <span className={`px-space-xs py-0.5 rounded ${i <= stepIndex ? 'bg-primary text-on-primary font-bold' : 'border border-outline-variant text-outline'}`}>{step}</span>
-                            {i < STEPS.length - 1 && <Icon name="chevron_right" className="text-[14px] text-outline" />}
+                            {/* 지난 단계는 진한 회색, 남은 단계는 흐린 회색 글자. 색은 위쪽 상태 배지 하나만 쓴다. */}
+                            <span className={i <= stepIndex ? 'text-on-surface font-bold' : 'text-outline'} aria-current={i === stepIndex ? 'step' : undefined}>
+                                {step}
+                            </span>
+                            {i < STEPS.length - 1 && <Icon name="chevron_right" className="text-[14px] text-outline-variant" />}
                         </li>
                     ))}
                 </ol>

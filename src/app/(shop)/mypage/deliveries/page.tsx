@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
-import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Text } from '@astryxdesign/core/Text';
 import MyPageShell from '@/components/layout/MyPageShell';
 import Icon from '@/components/ui/Icon';
-import { ROUTES } from '@/lib/routes';
+import OrderTabs from '../_components/OrderTabs';
 import DeliveryList from './_components/DeliveryList';
 
 export const metadata: Metadata = {
@@ -15,10 +14,7 @@ export default function DeliveriesPage() {
     return (
         <MyPageShell title="배송 조회" description="판매자별 배송 진행 상황을 확인하고 구매를 확정합니다.">
                     <div className="flex flex-col gap-5">
-                        <div className="flex gap-space-sm">
-                            <Button label="주문 내역" variant="secondary" size="sm" href={ROUTES.orders} />
-                            <Button label="배송 조회" variant="primary" size="sm" isDisabled />
-                        </div>
+                        <OrderTabs active="deliveries" />
 
                         <DeliveryList />
 

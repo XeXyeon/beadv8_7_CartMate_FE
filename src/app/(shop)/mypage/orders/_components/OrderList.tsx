@@ -40,9 +40,9 @@ const PERIODS = [
     { value: 180, label: '최근 6개월' },
 ];
 
-const TAB_ACTIVE = 'px-space-md py-2 bg-primary text-on-primary font-label-sm text-label-sm rounded transition-colors';
+const TAB_ACTIVE = 'whitespace-nowrap px-space-md py-2 bg-primary text-on-primary font-label-sm text-label-sm rounded transition-colors';
 const TAB_INACTIVE =
-    'px-space-md py-2 bg-surface text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-sm text-label-sm rounded transition-colors border border-outline-variant';
+    'whitespace-nowrap px-space-md py-2 bg-surface text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-label-sm text-label-sm rounded transition-colors border border-outline-variant';
 const TONE_VARIANT = { pending: 'warning', done: 'success', muted: 'neutral' } as const;
 
 // 주문 내역: 개인 주문과 공동 주문을 합쳐 최신순으로 보여 준다.
@@ -88,8 +88,8 @@ export default function OrderList() {
     return (
         <>
             {/* 구분 탭 · 기간 · 검색 */}
-            <Card padding={4} className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                <div className="flex items-center gap-space-xs border-b md:border-b-0 border-outline-variant pb-space-sm md:pb-0" role="group" aria-label="주문 구분">
+            <Card padding={4} className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                <div className="flex flex-wrap items-center gap-space-xs border-b lg:border-b-0 border-outline-variant pb-space-sm lg:pb-0" role="group" aria-label="주문 구분">
                     {TABS.map((item) => (
                         <button
                             key={item.key}
@@ -105,7 +105,7 @@ export default function OrderList() {
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center gap-space-xs">
+                <div className="flex flex-wrap items-center gap-space-xs">
                     <select
                         className="h-9 pl-3 pr-3 border border-outline-variant bg-surface-container-lowest font-body-sm text-on-surface outline-none rounded"
                         aria-label="조회 기간"
@@ -123,10 +123,10 @@ export default function OrderList() {
                             </option>
                         ))}
                     </select>
-                    <label className="h-9 border border-outline-variant bg-surface-container-lowest flex items-center gap-2 px-3 rounded">
+                    <label className="h-9 min-w-0 flex-1 lg:flex-none border border-outline-variant bg-surface-container-lowest flex items-center gap-2 px-3 rounded">
                         <Icon name="search" className="text-[16px] text-outline" />
                         <input
-                            className="bg-transparent border-none outline-none font-body-sm text-on-surface w-40"
+                            className="bg-transparent border-none outline-none font-body-sm text-on-surface w-full min-w-0 lg:w-40"
                             placeholder="상품명/주문번호 검색"
                             type="search"
                             aria-label="상품명 또는 주문번호 검색"
@@ -155,19 +155,18 @@ export default function OrderList() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-outline-variant bg-surface-container text-on-surface-variant font-caption text-caption uppercase">
-                                <th scope="col" className="p-space-md font-semibold">주문일 / 주문번호</th>
-                                <th scope="col" className="p-space-md font-semibold">대표 상품명 및 수량</th>
-                                <th scope="col" className="p-space-md font-semibold text-center">구분</th>
-                                <th scope="col" className="p-space-md font-semibold text-center">상태</th>
-                                <th scope="col" className="p-space-md font-semibold text-right">결제 금액</th>
-                                <th scope="col" className="p-space-md font-semibold text-center">관리</th>
+                                <th scope="col" className="px-space-sm py-space-md lg:px-space-md font-semibold whitespace-nowrap">주문일 / 주문번호</th>
+                                <th scope="col" className="px-space-sm py-space-md lg:px-space-md font-semibold whitespace-nowrap min-w-[180px]">대표 상품명 및 수량</th>
+                                <th scope="col" className="px-space-sm py-space-md lg:px-space-md font-semibold text-center whitespace-nowrap">상태</th>
+                                <th scope="col" className="px-space-sm py-space-md lg:px-space-md font-semibold text-right whitespace-nowrap">결제 금액</th>
+                                <th scope="col" className="hidden lg:table-cell px-space-sm py-space-md lg:px-space-md font-semibold text-center whitespace-nowrap">관리</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-outline-variant font-body-sm text-on-surface">
                             {loading
                                 ? [0, 1, 2].map((i) => (
                                       <tr key={i} aria-hidden>
-                                          <td colSpan={6} className="p-space-md">
+                                          <td colSpan={5} className="p-space-md">
                                               <div className="h-10 rounded bg-surface-container animate-pulse" />
                                           </td>
                                       </tr>
@@ -175,7 +174,7 @@ export default function OrderList() {
                                 : visible.map((row) => <OrderTableRow key={row.key} row={row} />)}
                             {!loading && visible.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="p-space-xl text-center text-on-surface-variant">
+                                    <td colSpan={5} className="p-space-xl text-center text-on-surface-variant">
                                         <EmptyMessage hasAny={rows.length > 0} hasFailure={failures.length > 0} />
                                     </td>
                                 </tr>
@@ -197,35 +196,44 @@ export default function OrderList() {
     );
 }
 
+function RowActions({ row }: { row: OrderRow }) {
+    return (
+        <>
+            <Button label={row.kind === 'SHARED_GROUP' ? '주문 현황' : '상세보기'} variant="secondary" size="sm" href={row.href} />
+            {row.payHref && <Button label="결제하기" variant="primary" size="sm" href={row.payHref} />}
+        </>
+    );
+}
+
 function OrderTableRow({ row }: { row: OrderRow }) {
     return (
         <tr className="hover:bg-surface-container/50 transition-colors">
-            <td className="p-space-md align-top whitespace-nowrap">
+            <td className="px-space-sm py-space-md lg:px-space-md align-top whitespace-nowrap">
                 <div className="font-bold text-on-surface">{formatDate(row.createdAt)}</div>
                 <div className="font-caption text-outline mt-0.5">{row.orderNumber}</div>
+                {/* 개인구매 · 공동구매는 칸을 따로 두지 않고 주문번호 아래 글자로 보여 준다. 색 배지는 상태 하나만 쓴다. */}
+                <div className="font-caption text-caption text-on-surface-variant mt-0.5">{KIND_LABEL[row.kind]}</div>
             </td>
-            <td className="p-space-md align-top">
+            <td className="px-space-sm py-space-md lg:px-space-md align-top min-w-[180px]">
                 <Link href={row.href} className="font-bold text-on-surface line-clamp-1 hover:text-primary">
                     {row.title}
                 </Link>
                 <div className="font-caption text-on-surface-variant mt-0.5">{row.subtitle}</div>
             </td>
-            <td className="p-space-md align-top text-center whitespace-nowrap">
-                <Badge label={KIND_LABEL[row.kind]} variant={row.kind === 'PERSONAL' ? 'neutral' : 'purple'} />
-            </td>
-            <td className="p-space-md align-top text-center whitespace-nowrap">
+            <td className="px-space-sm py-space-md lg:px-space-md align-top text-center whitespace-nowrap">
                 <Badge label={row.status.label} variant={TONE_VARIANT[row.status.tone]} />
             </td>
-            <td className="p-space-md align-top text-right whitespace-nowrap">
-                <div className="font-bold font-headline-sm text-headline-sm">{formatPrice(row.amount)}</div>
+            <td className="px-space-sm py-space-md lg:px-space-md align-top text-right whitespace-nowrap">
+                <div className="font-bold text-body-lg lg:font-headline-sm lg:text-headline-sm">{formatPrice(row.amount)}</div>
                 {row.amountNote && <div className="font-caption text-caption text-outline mt-0.5">{row.amountNote}</div>}
+                {/* 좁은 창에서는 관리 칸을 따로 두지 않고 금액 아래에 버튼을 붙인다. */}
+                <div className="mt-space-xs flex flex-col items-end gap-1 lg:hidden">
+                    <RowActions row={row} />
+                </div>
             </td>
-            <td className="p-space-md align-top text-center">
+            <td className="hidden lg:table-cell px-space-sm py-space-md lg:px-space-md align-top text-center">
                 <div className="flex flex-col items-center gap-1">
-                    <Button label={row.kind === 'SHARED_GROUP' ? '주문 현황' : '상세보기'} variant="secondary" size="sm" href={row.href} />
-                    {row.payHref && (
-                        <Button label="결제하기" variant="primary" size="sm" href={row.payHref} />
-                    )}
+                    <RowActions row={row} />
                 </div>
             </td>
         </tr>
