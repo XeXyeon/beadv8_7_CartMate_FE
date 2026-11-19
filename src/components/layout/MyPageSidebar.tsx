@@ -8,6 +8,7 @@ const MENU = [
     { label: '주문/배송 조회', href: ROUTES.orders, also: [ROUTES.deliveries, ROUTES.myClaims] },
     { label: '리뷰 쓰기', href: ROUTES.myReviews },
     { label: '찜한 상품', href: ROUTES.myWishes },
+    { label: '쿠폰함', href: ROUTES.myCoupons },
     { label: '예치금 관리', href: ROUTES.deposit },
     { label: '배송지 관리', href: ROUTES.addresses },
     { label: '회원 정보 수정', href: ROUTES.profile },
