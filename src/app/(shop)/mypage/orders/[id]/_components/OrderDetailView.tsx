@@ -74,7 +74,7 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
             <Card padding={4} className="flex flex-col gap-space-md">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
                     <div className="flex flex-wrap items-center gap-space-sm">
-                        <Heading level={1}>주문 {order.orderNumber}</Heading>
+                        <Heading level={2}>주문 {order.orderNumber}</Heading>
                         <Badge label={KIND_LABEL[kind]} variant={kind === 'INDIVIDUAL_GROUP' ? 'purple' : 'neutral'} />
                         <Badge label={status.label} variant={TONE_VARIANT[status.tone]} />
                         {partiallyCanceled && <Badge label="일부 취소" variant="warning" />}
