@@ -6,7 +6,8 @@
 # 필요: 로컬 MySQL(cartmate DB), 실행 중인 member 서비스(기본 http://localhost:8981) · product 서비스(기본 http://localhost:8982),
 #   mysql · curl · openssl · shasum
 #   판매글 등록 API(/api/sales-posts)는 product 서비스에 있고 판매자 로그인이 필요하다. 주소는 API_URL > PRODUCT_SERVICE_URL > 기본값.
-#   로그인(/api/auth/login)은 member 서비스. 주소는 MEMBER_URL > MEMBER_SERVICE_URL > API_BASE_URL > 기본값.
+#   로그인(/api/auth/login)은 member 서비스. 주소는 MEMBER_URL > MEMBER_SERVICE_URL > 기본값.
+#   DB와 두 서비스 주소는 로컬(localhost · 127.0.0.1 · ::1)만 허용한다. 신뢰 기기 행을 직접 심으므로 다른 DB에는 절대 쓰지 않는다.
 #   회원 · 지갑 · 배송지 · 상품 행은 DB_NAME 한 DB에 직접 넣으므로, BE 서비스들이 같은 DB(사용자 로컬 기본: cartmate)를
 #   쓸 때만 맞다. 서비스별 DB(cartmate_<서비스>)로 띄웠다면 이 스크립트는 아직 맞지 않는다(FE 이슈 BASE-4#1).
 # 계정 비밀번호는 모두 test1234 (로컬 전용 테스트 값)
@@ -16,7 +17,8 @@
 set -euo pipefail
 
 API_URL="${API_URL:-${PRODUCT_SERVICE_URL:-http://localhost:8982}}"
-MEMBER_URL="${MEMBER_URL:-${MEMBER_SERVICE_URL:-${API_BASE_URL:-http://localhost:8981}}}"
+MEMBER_URL="${MEMBER_URL:-${MEMBER_SERVICE_URL:-http://localhost:8981}}"
+DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_NAME="${DB_NAME:-cartmate}"
 DB_USER="${DB_USER:-cartmate}"
 DB_PASSWORD="${DB_PASSWORD:-cartmate}"
@@ -24,8 +26,24 @@ DB_PASSWORD="${DB_PASSWORD:-cartmate}"
 # test1234 의 bcrypt 해시 (BE BCryptPasswordEncoder 로 검증 가능한 형식)
 PASSWORD_HASH='$2y$10$.GdXZqlMdvdHMkGnpmi90OXD/2k5zyh3A07HHYkG0mhdir5ek2ebS'
 
+is_local_host() {
+    case "$1" in localhost|127.0.0.1|::1|\[::1\]) return 0 ;; *) return 1 ;; esac
+}
+url_host() {
+    local rest=${1#*://}
+    rest=${rest%%/*}
+    case "$rest" in \[*\]*) echo "${rest%%]*}]" ;; *) echo "${rest%%:*}" ;; esac
+}
+for target in "DB_HOST=$DB_HOST" "API_URL=$(url_host "$API_URL")" "MEMBER_URL=$(url_host "$MEMBER_URL")"; do
+    if ! is_local_host "${target#*=}"; then
+        echo "로컬이 아닌 주소라 멈춤: $target (이 스크립트는 로컬 DB · 서비스 전용)" >&2
+        exit 1
+    fi
+done
+
+# ~/.my.cnf나 MYSQL_HOST가 다른 호스트를 가리켜도 따라가지 않게 호스트와 TCP를 명시한다.
 sql() {
-    MYSQL_PWD="$DB_PASSWORD" mysql --default-character-set=utf8mb4 -u"$DB_USER" "$DB_NAME" -N -e "$1"
+    MYSQL_PWD="$DB_PASSWORD" mysql --default-character-set=utf8mb4 -h "$DB_HOST" --protocol=TCP -u"$DB_USER" "$DB_NAME" -N -e "$1"
 }
 
 # 회원가입 API는 휴대폰 인증(BE 로그에만 찍히는 인증번호)이 필요하고 비밀번호 규칙상 test1234 를 쓸 수 없어서,
@@ -81,10 +99,13 @@ WORK_DIR=$(mktemp -d)
 # BE는 토큰의 SHA-256(hex)만 저장한다. 로그인 때 BE가 토큰을 바꿔 쓰고, 끝나면 이 행을 지운다.
 DEVICE_TOKEN=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')
 DEVICE_HASH=$(printf '%s' "$DEVICE_TOKEN" | shasum -a 256 | cut -d' ' -f1)
-sql "INSERT INTO trusted_device (created_at, updated_at, device_name, expires_at, last_used_at, member_id, token_hash)
-     VALUES (NOW(6), NOW(6), 'seed-local', NOW(6) + INTERVAL 10 MINUTE, NOW(6), $SELLER_ID, '$DEVICE_HASH');"
+# 행을 넣기 전에 정리부터 걸어 둔다(넣는 도중 중단돼도 지워지게).
 trap 'sql "DELETE FROM trusted_device WHERE member_id = $SELLER_ID AND device_name = '"'"'seed-local'"'"';" || true; rm -rf "$WORK_DIR"' EXIT
-LOGIN_STATUS=$(curl -s -o "$WORK_DIR/login.json" -w '%{http_code}' -c "$WORK_DIR/cookies.txt" -b "trustedDevice=$DEVICE_TOKEN" \
+# BE는 KST(serverTimezone=Asia/Seoul) 벽시계 값으로 만료를 비교한다. MySQL 세션 시간대가 UTC여도 맞게 같은 요청 안에서 KST로 맞춘다.
+sql "SET time_zone = '+09:00';
+     INSERT INTO trusted_device (created_at, updated_at, device_name, expires_at, last_used_at, member_id, token_hash)
+     VALUES (NOW(6), NOW(6), 'seed-local', NOW(6) + INTERVAL 10 MINUTE, NOW(6), $SELLER_ID, '$DEVICE_HASH');"
+LOGIN_STATUS=$(curl -sS -o "$WORK_DIR/login.json" -w '%{http_code}' -c "$WORK_DIR/cookies.txt" -b "trustedDevice=$DEVICE_TOKEN" \
     -H 'Content-Type: application/json' -X POST "$MEMBER_URL/api/auth/login" \
     -d '{"email":"seller@example.test","password":"test1234","remember":false}')
 if [ "$LOGIN_STATUS" -ge 300 ] || ! grep -q accessToken "$WORK_DIR/cookies.txt"; then
@@ -104,7 +125,7 @@ post() {
     local images=()
     for _ in $(seq 1 "$image_count"); do images+=(-F "images=@$WORK_DIR/img.png;type=image/png"); done
     local status
-    status=$(curl -s -o "$WORK_DIR/res.json" -w '%{http_code}' -b "$WORK_DIR/cookies.txt" -X POST "$API_URL/api/sales-posts" \
+    status=$(curl -sS -o "$WORK_DIR/res.json" -w '%{http_code}' -b "$WORK_DIR/cookies.txt" -X POST "$API_URL/api/sales-posts" \
         -F "request=@$WORK_DIR/req.json;type=application/json" "${images[@]}")
     if [ "$status" -ge 300 ]; then
         echo "판매글 등록 실패($status): $title" >&2
