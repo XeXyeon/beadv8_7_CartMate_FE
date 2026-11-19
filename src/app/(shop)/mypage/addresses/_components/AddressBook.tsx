@@ -88,7 +88,7 @@ export default function AddressBook() {
     // 비로그인이면 로그인 페이지로
     useEffect(() => {
         if (query.error instanceof ApiError && query.error.status === 401) {
-            router.replace(`${ROUTES.login}?redirect=${encodeURIComponent(ROUTES.addresses)}`);
+            router.replace(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.addresses)}`);
         }
     }, [query.error, router]);
 
