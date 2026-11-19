@@ -264,6 +264,7 @@ function EditFormBody({ source, sellerId }: { source: EditSource; sellerId: numb
                     <textarea
                         className="w-full p-space-md bg-surface border border-outline-variant rounded text-on-surface placeholder:text-outline focus:border-primary focus:outline-none transition-colors resize-y"
                         name="content"
+                        aria-label="상세 설명"
                         placeholder="상세 내용을 입력하세요..."
                         rows={8}
                         defaultValue={post.content}

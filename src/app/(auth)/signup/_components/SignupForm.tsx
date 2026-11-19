@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
 import { Button } from '@astryxdesign/core/Button';
 import {
+    checkEmail,
     checkNickname,
     useSendPhoneCode,
     useSignup,
@@ -48,6 +49,8 @@ export default function SignupForm() {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
     const [emailCodeSentTo, setEmailCodeSentTo] = useState('');
+    // 이미 가입된 것으로 확인된 이메일 (check-email 또는 인증번호 발송 409). 입력을 바꾸면 안내가 사라진다.
+    const [takenEmail, setTakenEmail] = useState('');
 
     const {
         register,
@@ -79,6 +82,7 @@ export default function SignupForm() {
 
     const emailVerified = verifiedEmail !== '' && verifiedEmail === email.trim();
     const emailCodeSent = emailCodeSentTo !== '' && emailCodeSentTo === email.trim();
+    const emailTaken = takenEmail !== '' && takenEmail === email.trim();
     const nicknameVerified = verifiedNickname !== '' && verifiedNickname === nickname.trim();
     const phoneVerified = verifiedPhone !== '' && verifiedPhone === phone;
     const codeSent = sendCode.isSuccess && sendCode.variables.data.phone === phone;
@@ -122,6 +126,21 @@ export default function SignupForm() {
         });
     };
 
+    // 이메일 칸을 벗어날 때 이미 가입된 이메일인지 미리 확인한다.
+    // 형식이 틀렸거나 이미 인증한 이메일이면 묻지 않는다. 확인이 실패하면 조용히 넘어가고, 발송 때 BE 409가 다시 막는다.
+    const handleEmailBlur = () => {
+        const result = signupFields.email.safeParse(getValues('email'));
+        if (!result.success) return;
+        const value = result.data;
+        if (value === getValues('verifiedEmail') || value === takenEmail) return;
+        checkEmail({ email: value })
+            .then((res) => {
+                if (getValues('email').trim() !== value) return;
+                if (res.data?.available === false) setTakenEmail(value);
+            })
+            .catch(() => {});
+    };
+
     // 이메일 인증번호 발송. 이미 가입된 이메일이면 BE가 409로 알려 준다 (중복확인을 겸한다)
     const handleSendEmailCode = () => {
         const value = parseField('email');
@@ -134,7 +153,13 @@ export default function SignupForm() {
                 clearErrors(['email', 'emailCode']);
             },
             onError: (error) => {
-                if (getValues('email').trim() === value) setError('email', { message: errorMessage(error) });
+                if (getValues('email').trim() !== value) return;
+                if (error instanceof ApiError && error.resultCode === 'MEMBER_DUPLICATE_EMAIL') {
+                    setTakenEmail(value);
+                    clearErrors('email');
+                    return;
+                }
+                setError('email', { message: errorMessage(error) });
             },
         });
     };
@@ -243,18 +268,19 @@ export default function SignupForm() {
                         id="reg-email"
                         placeholder="example@sportsgroup.co.kr"
                         type="email"
-                        {...register('email')}
+                        aria-invalid={emailTaken || errors.email ? true : undefined}
+                        {...register('email', { onBlur: handleEmailBlur })}
                     />
                     <Button
                         label={emailVerified ? '인증완료' : sendEmail.isPending ? '발송 중...' : emailCodeSent ? '재발송' : '인증번호 발송'}
                         variant="secondary"
                         size="lg"
                         onClick={handleSendEmailCode}
-                        isDisabled={emailVerified || sendEmail.isPending}
+                        isDisabled={emailVerified || emailTaken || sendEmail.isPending}
                         isLoading={sendEmail.isPending}
                     />
                 </div>
-                <FieldError message={errors.email?.message} />
+                <FieldError message={emailTaken ? '이미 사용 중인 이메일입니다. 다른 이메일을 입력하거나 로그인해 주세요.' : errors.email?.message} />
                 {emailCodeSent && !emailVerified && (
                     <div className="flex flex-col gap-1.5 pt-1">
                         <div className="flex gap-2">
@@ -478,7 +504,7 @@ export default function SignupForm() {
                 size="lg"
                 width="100%"
                 type="submit"
-                isDisabled={signup.isPending}
+                isDisabled={signup.isPending || emailTaken}
                 isLoading={signup.isPending}
                 endContent={<Icon name="arrow_forward" className="text-[18px]" />}
             />

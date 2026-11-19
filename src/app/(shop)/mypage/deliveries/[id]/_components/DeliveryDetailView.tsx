@@ -37,7 +37,7 @@ export default function DeliveryDetailView() {
     return (
         <div className="flex flex-col gap-space-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
-                <Heading level={1}>배송 #{deliveryId}</Heading>
+                <Heading level={2}>배송 #{deliveryId}</Heading>
                 <Text color="secondary">{orderLabel}</Text>
             </div>
 

@@ -14,8 +14,7 @@ import { toSalesPostCardWithTrust } from './SellerTrust';
 
 export const HOME_PAGE_SIZE = 8;
 
-// BE 목록은 최신 등록순만 지원한다. 나머지 정렬은 자리만 남겨 두고 비활성. (로드맵 SHOP-3)
-// 홈 "최신 판매 상품" 목록.
+// 홈 "최신 판매 상품" 목록(GET /api/sales-posts, 최신 등록순). 카테고리 · 가격 필터와 정렬은 검색 화면(/search)에서 한다.
 // initialData: 서버(page.tsx)가 미리 받은 첫 페이지. 있으면 첫 HTML부터 상품 카드 · 링크가 들어간다. (OPS-9)
 export default function HomeSalesPosts({ initialData }: { initialData?: Awaited<ReturnType<typeof selectSalesPostAll>> }) {
     const query = useSelectSalesPostAll({ page: 0, size: HOME_PAGE_SIZE }, { query: { initialData } });
