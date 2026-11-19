@@ -221,7 +221,8 @@ export default function SalesPostRegisterForm() {
                     </div>
                     <div className="flex flex-col space-y-space-xs">
                         <div className="flex items-center justify-between border border-outline-variant border-b-0 rounded-t bg-surface-container px-space-md py-space-xs">
-                            <div className="flex items-center gap-space-md text-on-surface-variant">
+                            {/* 편집 도구는 아직 동작하지 않는 장식이라 보조기기에서 숨긴다 (버튼도 tabIndex -1) */}
+                            <div className="flex items-center gap-space-md text-on-surface-variant" aria-hidden="true">
                                 {EDITOR_TOOLS.map((tool) => (
                                     <button key={tool} className="p-1 hover:text-on-surface transition-colors" type="button" tabIndex={-1}>
                                         <Icon name={tool} className="text-[18px]" />
@@ -239,6 +240,7 @@ export default function SalesPostRegisterForm() {
                         <textarea
                             className="w-full p-space-md bg-surface border border-outline-variant rounded-b text-on-surface placeholder:text-outline focus:border-primary focus:outline-none transition-colors resize-y"
                             name="content"
+                            aria-label="상세 설명"
                             placeholder="상세 내용을 입력하세요..."
                             rows={8}
                         />

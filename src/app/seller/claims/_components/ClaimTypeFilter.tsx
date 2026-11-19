@@ -37,6 +37,7 @@ export default function ClaimTypeFilter() {
         <div className="flex items-center gap-space-sm">
             <span className="text-caption text-on-surface-variant font-label-sm">유형</span>
             <select
+                aria-label="클레임 유형"
                 className="bg-surface border border-outline-variant text-on-surface text-body-sm rounded px-space-md py-space-xs outline-none focus:border-primary"
                 value={value}
                 onChange={(e) => change(e.target.value)}
