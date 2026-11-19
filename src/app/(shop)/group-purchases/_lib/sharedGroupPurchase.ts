@@ -40,7 +40,8 @@ type Detail = SharedGroupPurchaseDetailResponse;
 export function itemPermissions(purchase: Detail, deadlinePassed: boolean) {
     const editable = purchase.editable === true && !deadlinePassed;
     const frozenByCreator = purchase.status === 'FROZEN' && purchase.viewerIsCreator === true;
-    return { canAdd: editable, canChangeQuantity: editable, canRemove: editable || frozenByCreator };
+    // 옵션 변경은 BE에서 빼기와 같은 규칙이다(마감 보류 중에는 만든 사람만).
+    return { canAdd: editable, canChangeQuantity: editable, canRemove: editable || frozenByCreator, canChangeOption: editable || frozenByCreator };
 }
 
 // 참여자 한 명이 낼 예상 금액. BE가 총액을 인원 수로 나누고 나머지는 만든 사람 몫(creatorAmount)에 더해 준다.

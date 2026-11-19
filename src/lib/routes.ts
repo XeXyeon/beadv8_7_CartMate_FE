@@ -40,6 +40,7 @@ export const ROUTES = {
     depositChargeSuccess: '/mypage/deposit/charge/success',
     depositChargeFail: '/mypage/deposit/charge/fail',
     depositHistory: '/mypage/deposit/history',
+    depositWithdraw: '/mypage/deposit/withdraw',
     profile: '/mypage/profile',
     addresses: '/mypage/addresses',
     sellerApply: '/mypage/seller-apply',
