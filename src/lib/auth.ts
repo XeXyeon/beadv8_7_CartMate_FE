@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useLogout as useLogoutMutation } from '@/api/generated/auth-controller/auth-controller';
 import { getMeQueryKey, me } from '@/api/generated/member-controller/member-controller';
-import { useMySeller } from '@/api/generated/seller-controller/seller-controller';
+import { getMySellerQueryKey, useMySeller } from '@/api/generated/seller-controller/seller-controller';
 import type { MemberDto } from '@/api/generated/model';
 import { ApiError } from '@/api/http';
 import { ROUTES } from '@/lib/routes';
@@ -61,6 +61,17 @@ export function useMySellerId() {
         sellerId: isLoggedIn ? (query.data ?? null) : null,
         isLoading: userLoading || (isLoggedIn && query.isPending),
     };
+}
+
+// 회원 정보(닉네임 · 역할) · 판매자 등록을 바꾼 뒤 부른다. 헤더 등은 위 두 조회를 5분 동안 다시 받지 않으므로
+// 바로 새 값을 받게 무효화한다. (화면이 쓰는 조회만 다시 받는다)
+export function useRefreshCurrentUser() {
+    const queryClient = useQueryClient();
+    return () =>
+        Promise.all([
+            queryClient.invalidateQueries({ queryKey: ME_KEY }),
+            queryClient.invalidateQueries({ queryKey: getMySellerQueryKey() }),
+        ]);
 }
 
 // 로그인·로그아웃 요청의 401은 "토큰 만료"가 아니므로 전역 만료 처리(QueryProvider)에서 제외한다.
