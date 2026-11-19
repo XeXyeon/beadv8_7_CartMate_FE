@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/Icon';
 import { apiFetch, ApiError } from '@/lib/api';
 import { ROUTES } from '@/lib/routes';
+import TrustedDeviceSection from './TrustedDeviceSection';
 import WithdrawalSection from './WithdrawalSection';
 
 type Profile = {
@@ -519,6 +520,9 @@ export default function ProfileContent() {
                     </div>
                 </div>
             </div>
+
+            {/* 로그인 기기 관리 ("이 기기 30일 기억"). 관리자는 매번 OTP라 기억 기기가 없다 */}
+            {profile.role !== 'ADMIN' && <TrustedDeviceSection />}
 
             {/* 회원 탈퇴 */}
             <WithdrawalSection />

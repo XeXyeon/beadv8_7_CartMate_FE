@@ -31,4 +31,5 @@ export * from './seller-trust-controller/seller-trust-controller';
 export * from './shared-group-order-controller/shared-group-order-controller';
 export * from './shared-group-purchase-controller/shared-group-purchase-controller';
 export * from './toss-webhook-controller/toss-webhook-controller';
+export * from './trusted-device-controller/trusted-device-controller';
 export * from './wallet-controller/wallet-controller';
