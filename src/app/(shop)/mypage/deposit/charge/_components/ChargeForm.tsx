@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { ANONYMOUS, loadTossPayments, type TossPaymentsWidgets } from '@tosspayments/tosspayments-sdk';
+import { useState } from 'react';
+import { ANONYMOUS, loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Text } from '@astryxdesign/core/Text';
@@ -14,60 +14,29 @@ import { CHARGE_AMOUNT_RULE_MESSAGE, CHARGE_MIN, CHARGE_PRESETS, validateChargeA
 
 const CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY ?? '';
 
-type WidgetState = 'loading' | 'ready' | 'error';
-
-// 금액을 고르고 토스 결제위젯으로 결제한다. 결제가 끝나면 토스가 success·fail 페이지로 돌려보내고, 승인은 success 페이지가 한다.
+// 금액을 고르고 토스 결제창으로 결제한다. 결제가 끝나면 토스가 success·fail 페이지로 돌려보내고, 승인은 success 페이지가 한다.
 export default function ChargeForm() {
     const [amount, setAmount] = useState<number | null>(CHARGE_MIN);
-    const [widgetState, setWidgetState] = useState<WidgetState>('loading');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const widgetsRef = useRef<TossPaymentsWidgets | null>(null);
-    // StrictMode에서 effect가 두 번 돌아도 같은 자리에 위젯을 두 번 그리지 않게 한다
-    const startedRef = useRef(false);
 
     const amountError = validateChargeAmount(amount);
 
-    useEffect(() => {
-        if (!CLIENT_KEY || startedRef.current) return;
-        startedRef.current = true;
-        (async () => {
-            try {
-                const tossPayments = await loadTossPayments(CLIENT_KEY);
-                const widgets = tossPayments.widgets({ customerKey: ANONYMOUS });
-                // 위젯은 금액을 먼저 정해야 그릴 수 있다
-                await widgets.setAmount({ currency: 'KRW', value: CHARGE_MIN });
-                await Promise.all([
-                    widgets.renderPaymentMethods({ selector: '#payment-method', variantKey: 'DEFAULT' }),
-                    widgets.renderAgreement({ selector: '#agreement', variantKey: 'AGREEMENT' }),
-                ]);
-                widgetsRef.current = widgets;
-                setWidgetState('ready');
-            } catch {
-                setWidgetState('error');
-            }
-        })();
-    }, []);
-
-    // 위젯에 보이는 금액(할부 가능 여부 등)을 입력과 맞춘다. 규칙을 벗어난 값은 결제할 수 없으므로 반영하지 않는다.
-    // 결제 중에는 충전 주문 금액과 위젯 금액이 어긋나지 않도록 바꾸지 않는다.
-    useEffect(() => {
-        if (widgetState !== 'ready' || submitting || amount === null || amountError) return;
-        widgetsRef.current?.setAmount({ currency: 'KRW', value: amount }).catch(() => undefined);
-    }, [amount, amountError, widgetState, submitting]);
-
+    // 결제창 방식은 미리 그려 둘 화면이 없으므로, 결제를 누를 때 SDK를 불러 결제창을 연다.
     async function handlePay() {
-        const widgets = widgetsRef.current;
-        if (!widgets || amount === null || amountError) return;
+        if (amount === null || amountError) return;
         setSubmitting(true);
         setError(null);
         try {
-            await widgets.setAmount({ currency: 'KRW', value: amount });
             // 결제를 누를 때마다 새 충전 주문을 만든다. 같은 시도의 재전송만 같은 주문으로 묶인다.
             const order = await walletChargeOrder({ amount, idempotencyKey: crypto.randomUUID() });
             const orderNumber = order.data?.orderNumber;
             if (!orderNumber) throw new Error('충전 주문을 만들지 못했습니다. 잠시 후 다시 시도해주세요.');
-            await widgets.requestPayment({
+            const tossPayments = await loadTossPayments(CLIENT_KEY);
+            // CARD는 카드·간편결제 통합결제창을 연다
+            await tossPayments.payment({ customerKey: ANONYMOUS }).requestPayment({
+                method: 'CARD',
+                amount: { currency: 'KRW', value: amount },
                 orderId: orderNumber,
                 orderName: '예치금 충전',
                 successUrl: window.location.origin + ROUTES.depositChargeSuccess,
@@ -120,14 +89,6 @@ export default function ChargeForm() {
                 </Text>
             </Card>
 
-            <Card padding={5}>
-                {widgetState === 'error' ? (
-                    <Text role="alert">결제 화면을 불러오지 못했습니다. 새로고침한 뒤 다시 시도해주세요.</Text>
-                ) : null}
-                <div id="payment-method" />
-                <div id="agreement" />
-            </Card>
-
             {error ? (
                 <Card variant="red" padding={3} role="alert">
                     <Text>{error}</Text>
@@ -137,7 +98,7 @@ export default function ChargeForm() {
             <Button
                 label="결제하기"
                 variant="primary"
-                isDisabled={widgetState !== 'ready' || amountError !== null || submitting}
+                isDisabled={amountError !== null || submitting}
                 isLoading={submitting}
                 onClick={handlePay}
             />
