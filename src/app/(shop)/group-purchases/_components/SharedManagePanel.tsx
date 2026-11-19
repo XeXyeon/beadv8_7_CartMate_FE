@@ -6,6 +6,7 @@ import type { SharedGroupPurchaseDetailResponse } from '@/api/generated/model';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
+import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
 import { hasErrorCode, inviteUrl, managePermissions, MAX_PARTICIPANTS } from '../_lib/sharedGroupPurchase';
 import { useSharedPurchaseActions } from '../_lib/useSharedPurchaseActions';
 import SharedPayLink from '../../checkout/shared/_components/SharedPayLink';
@@ -215,6 +216,7 @@ function MaxParticipantsForm({
                 <input
                     className="w-full h-10 px-space-md rounded border border-outline-variant bg-surface-container-lowest font-body-sm text-body-sm text-on-surface focus:border-primary outline-none"
                     type="number"
+                    onWheel={blurOnWheel}
                     inputMode="numeric"
                     min={current + 1}
                     max={MAX_PARTICIPANTS}

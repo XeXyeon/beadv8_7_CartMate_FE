@@ -14,6 +14,7 @@ import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
 import { findInventory, formatPrice, isOptionAvailable, toProductOption } from '@/lib/salesPost';
+import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
 import ItemThumb from '../../../_components/ItemThumb';
 import Notice from '../../../_components/Notice';
 import SharedDetailGate, { type SharedDetailContext } from '../../../_components/SharedDetailGate';
@@ -354,6 +355,7 @@ function PickedPanel({ id, picked, sameProductItems, canAdd, canChangeOption, mu
                         <input
                             className="h-11 px-space-md border border-outline-variant bg-surface-container-lowest font-body-md text-body-md text-on-surface rounded focus:border-primary outline-none"
                             type="number"
+                            onWheel={blurOnWheel}
                             inputMode="numeric"
                             min={1}
                             max={MAX_QUANTITY}

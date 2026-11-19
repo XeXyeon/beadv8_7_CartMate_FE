@@ -15,6 +15,7 @@ import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { conditionLabel, discountLabel } from '@/lib/coupon';
 import { formatDateTime } from '@/lib/format';
+import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
 
 const PAGE_SIZE = 20;
 
@@ -180,18 +181,18 @@ export default function AdminCouponManager() {
                                 />
                             </Field>
                             <Field label={form.discountType === 'RATE' ? '할인율 (%)' : '할인 금액 (원)'}>
-                                <input className={INPUT} type="number" min={1} max={form.discountType === 'RATE' ? 100 : undefined} value={form.discountValue} onChange={(e) => set('discountValue', e.target.value)} />
+                                <input className={INPUT} type="number" onWheel={blurOnWheel} min={1} max={form.discountType === 'RATE' ? 100 : undefined} value={form.discountValue} onChange={(e) => set('discountValue', e.target.value)} />
                             </Field>
                             {form.discountType === 'RATE' && (
                                 <Field label="최대 할인 금액 (원, 선택)">
-                                    <input className={INPUT} type="number" min={1} placeholder="제한 없음" value={form.maxDiscountAmount} onChange={(e) => set('maxDiscountAmount', e.target.value)} />
+                                    <input className={INPUT} type="number" onWheel={blurOnWheel} min={1} placeholder="제한 없음" value={form.maxDiscountAmount} onChange={(e) => set('maxDiscountAmount', e.target.value)} />
                                 </Field>
                             )}
                         </div>
 
                         <div className="grid gap-space-md sm:grid-cols-3">
                             <Field label="최소 주문 금액 (원)">
-                                <input className={INPUT} type="number" min={0} value={form.minOrderAmount} onChange={(e) => set('minOrderAmount', e.target.value)} />
+                                <input className={INPUT} type="number" onWheel={blurOnWheel} min={0} value={form.minOrderAmount} onChange={(e) => set('minOrderAmount', e.target.value)} />
                             </Field>
                             <Field label="적용 대상">
                                 <Segment
@@ -202,7 +203,7 @@ export default function AdminCouponManager() {
                             </Field>
                             {form.scope === 'SELLER' && (
                                 <Field label="판매자 회원 ID">
-                                    <input className={INPUT} type="number" min={1} value={form.sellerId} onChange={(e) => set('sellerId', e.target.value)} />
+                                    <input className={INPUT} type="number" onWheel={blurOnWheel} min={1} value={form.sellerId} onChange={(e) => set('sellerId', e.target.value)} />
                                 </Field>
                             )}
                         </div>
@@ -233,7 +234,7 @@ export default function AdminCouponManager() {
                             </Field>
                             {form.periodType === 'DAYS' ? (
                                 <Field label="사용 일수">
-                                    <input className={INPUT} type="number" min={1} value={form.validDays} onChange={(e) => set('validDays', e.target.value)} />
+                                    <input className={INPUT} type="number" onWheel={blurOnWheel} min={1} value={form.validDays} onChange={(e) => set('validDays', e.target.value)} />
                                 </Field>
                             ) : (
                                 <Field label="사용 마감">
@@ -241,7 +242,7 @@ export default function AdminCouponManager() {
                                 </Field>
                             )}
                             <Field label="총 발급 수량 (선택)">
-                                <input className={INPUT} type="number" min={1} placeholder="제한 없음" value={form.totalQuantity} onChange={(e) => set('totalQuantity', e.target.value)} />
+                                <input className={INPUT} type="number" onWheel={blurOnWheel} min={1} placeholder="제한 없음" value={form.totalQuantity} onChange={(e) => set('totalQuantity', e.target.value)} />
                             </Field>
                         </div>
 

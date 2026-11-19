@@ -13,6 +13,7 @@ import type { DemandCandidateResponse, GetCandidatesParams } from '@/api/generat
 import { ApiError, errorMessage } from '@/api/http';
 import { ROUTES } from '@/lib/routes';
 import { parseKst } from '@/lib/format';
+import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
 
 type DemandFilters = Required<GetCandidatesParams>;
 
@@ -140,6 +141,7 @@ export default function DemandCandidates() {
                             <input
                                 className="h-10 px-space-sm bg-surface-container-lowest border border-outline-variant rounded text-on-surface"
                                 type="number"
+                                onWheel={blurOnWheel}
                                 min={field.min}
                                 max={field.max}
                                 step={1}
