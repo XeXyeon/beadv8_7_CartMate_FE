@@ -9,6 +9,7 @@ const MENU = [
     { label: '판매글 관리', icon: 'inventory_2', href: ROUTES.adminPosts },
     { label: '장바구니 수요', icon: 'shopping_cart', href: ROUTES.adminCartDemands },
     { label: '공지사항 관리', icon: 'campaign', href: ROUTES.adminNotices },
+    { label: '쿠폰 관리', icon: 'confirmation_number', href: ROUTES.adminCoupons },
 ];
 
 export default function AdminSidebar() {

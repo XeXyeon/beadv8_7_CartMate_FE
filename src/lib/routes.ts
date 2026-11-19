@@ -34,6 +34,7 @@ export const ROUTES = {
     myClaims: '/mypage/claims',
     myReviews: '/mypage/reviews',
     myWishes: '/mypage/wishes',
+    myCoupons: '/mypage/coupons',
     deposit: '/mypage/deposit',
     depositCharge: '/mypage/deposit/charge',
     depositChargeSuccess: '/mypage/deposit/charge/success',
@@ -63,6 +64,7 @@ export const ROUTES = {
     adminPosts: '/admin/posts',
     adminPost: (id: string | number = 1) => `/admin/posts/${id}`,
     adminNotices: '/admin/notices',
+    adminCoupons: '/admin/coupons',
     adminCartDemands: '/admin/carts/demands',
     adminIndividualGroupPurchaseDashboard: (id: string | number) => `/admin/carts/group-purchases/individual/${id}`,
 } as const;
