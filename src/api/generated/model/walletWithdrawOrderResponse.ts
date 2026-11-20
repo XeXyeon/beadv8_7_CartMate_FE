@@ -4,8 +4,16 @@
  * OpenAPI definition
  * OpenAPI spec version: v0
  */
+import type { WalletWithdrawOrderResponseStatus } from './walletWithdrawOrderResponseStatus';
 
 export interface WalletWithdrawOrderResponse {
   withdrawOrderId?: number;
   amount?: number;
+  status?: WalletWithdrawOrderResponseStatus;
+  statusLabel?: string;
+  bankName?: string;
+  accountNumberMasked?: string;
+  resultMessage?: string;
+  requestedAt?: string;
+  finishedAt?: string;
 }

@@ -25,14 +25,15 @@ import type {
 
 import type {
   GetMyWalletTransactionsParams,
+  GetMyWithdrawsParams,
   RsDataPageWalletTransactionResponse,
+  RsDataPageWalletWithdrawOrderResponse,
   RsDataWalletBalanceResponse,
   RsDataWalletChargeOrderResponse,
   RsDataWalletTransactionSummaryResponse,
   RsDataWalletWithdrawOrderResponse,
   WalletChargeConfirmRequest,
   WalletChargeOrderRequest,
-  WalletWithdrawConfirmRequest,
   WalletWithdrawOrderRequest
 } from '../model';
 
@@ -139,36 +140,37 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getWalletWithdrawOrderMutationOptions(options), queryClient);
     }
-    export const getWalletWithdrawConfirmUrl = () => {
+    export const getGetMyWithdrawsUrl = (params?: GetMyWithdrawsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["sort"];
 
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
-  return `/api/wallets/me/withdraws/confirm`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/wallets/me/withdraws?${stringifiedParams}` : `/api/wallets/me/withdraws`
 }
 
-export const walletWithdrawConfirm = async (walletWithdrawConfirmRequest: WalletWithdrawConfirmRequest, options?: Parameters<typeof http>[1]): Promise<RsDataWalletBalanceResponse> => {
+export const getMyWithdraws = async (params?: GetMyWithdrawsParams, options?: Parameters<typeof http>[1]): Promise<RsDataPageWalletWithdrawOrderResponse> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return http<RsDataWalletBalanceResponse>(getWalletWithdrawConfirmUrl(),
+  return http<RsDataPageWalletWithdrawOrderResponse>(getGetMyWithdrawsUrl(params),
   {
     ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(walletWithdrawConfirmRequest)
+    method: 'GET'
+
+
   }
 );}
 
@@ -176,51 +178,78 @@ return http<RsDataWalletBalanceResponse>(getWalletWithdrawConfirmUrl(),
 
 
 
-export const getWalletWithdrawConfirmMutationKey = () => ['walletWithdrawConfirm'] as const;
-
-export const getWalletWithdrawConfirmMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof walletWithdrawConfirm>>, TError,WalletWithdrawConfirmMutationVariables, TContext>, request?: SecondParameter<typeof http>}
-): UseMutationOptions<Awaited<ReturnType<typeof walletWithdrawConfirm>>, TError,WalletWithdrawConfirmMutationVariables, TContext> => {
-
-const mutationKey = getWalletWithdrawConfirmMutationKey();
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof walletWithdrawConfirm>>, WalletWithdrawConfirmMutationVariables> = (props) => {
-          const {data} = props ?? {};
-
-          return  walletWithdrawConfirm(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type WalletWithdrawConfirmMutationResult = NonNullable<Awaited<ReturnType<typeof walletWithdrawConfirm>>>
-    export type WalletWithdrawConfirmMutationBody = WalletWithdrawConfirmRequest
-    export type WalletWithdrawConfirmMutationError = unknown
-    export type WalletWithdrawConfirmMutationVariables = {data: WalletWithdrawConfirmRequest}
-
-    export const useWalletWithdrawConfirm = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof walletWithdrawConfirm>>, TError,WalletWithdrawConfirmMutationVariables, TContext>, request?: SecondParameter<typeof http>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof walletWithdrawConfirm>>,
-        TError,
-        WalletWithdrawConfirmMutationVariables,
-        TContext
-      > => {
-      return useMutation(getWalletWithdrawConfirmMutationOptions(options), queryClient);
+export const getGetMyWithdrawsQueryKey = (params?: GetMyWithdrawsParams,) => {
+    return [
+    `/api/wallets/me/withdraws`, ...(params ? [params] : [])
+    ] as const;
     }
-    export const getWalletChargeOrderUrl = () => {
+
+
+export const getGetMyWithdrawsQueryOptions = <TData = Awaited<ReturnType<typeof getMyWithdraws>>, TError = unknown>(params?: GetMyWithdrawsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyWithdraws>>, TError, TData>>, request?: SecondParameter<typeof http>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyWithdrawsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyWithdraws>>> = ({ signal }) => getMyWithdraws(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyWithdraws>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyWithdrawsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyWithdraws>>>
+export type GetMyWithdrawsQueryError = unknown
+
+
+export function useGetMyWithdraws<TData = Awaited<ReturnType<typeof getMyWithdraws>>, TError = unknown>(
+ params: undefined |  GetMyWithdrawsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyWithdraws>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyWithdraws>>,
+          TError,
+          Awaited<ReturnType<typeof getMyWithdraws>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyWithdraws<TData = Awaited<ReturnType<typeof getMyWithdraws>>, TError = unknown>(
+ params?: GetMyWithdrawsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyWithdraws>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyWithdraws>>,
+          TError,
+          Awaited<ReturnType<typeof getMyWithdraws>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyWithdraws<TData = Awaited<ReturnType<typeof getMyWithdraws>>, TError = unknown>(
+ params?: GetMyWithdrawsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyWithdraws>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetMyWithdraws<TData = Awaited<ReturnType<typeof getMyWithdraws>>, TError = unknown>(
+ params?: GetMyWithdrawsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyWithdraws>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyWithdrawsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getWalletChargeOrderUrl = () => {
 
 
 
@@ -679,3 +708,70 @@ export function useGetMyWalletTransactionSummary<TData = Awaited<ReturnType<type
 
 
 
+export const getCancelWithdrawUrl = (withdrawOrderId: number,) => {
+
+
+
+
+  return `/api/wallets/me/withdraws/${withdrawOrderId}/cancel`
+}
+
+export const cancelWithdraw = async (withdrawOrderId: number, options?: Parameters<typeof http>[1]): Promise<RsDataWalletBalanceResponse> => {
+
+  return http<RsDataWalletBalanceResponse>(getCancelWithdrawUrl(withdrawOrderId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelWithdrawMutationKey = () => ['cancelWithdraw'] as const;
+
+export const getCancelWithdrawMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelWithdraw>>, TError,CancelWithdrawMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelWithdraw>>, TError,CancelWithdrawMutationVariables, TContext> => {
+
+const mutationKey = getCancelWithdrawMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelWithdraw>>, CancelWithdrawMutationVariables> = (props) => {
+          const {withdrawOrderId} = props ?? {};
+
+          return  cancelWithdraw(withdrawOrderId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelWithdrawMutationResult = NonNullable<Awaited<ReturnType<typeof cancelWithdraw>>>
+
+    export type CancelWithdrawMutationError = unknown
+    export type CancelWithdrawMutationVariables = {withdrawOrderId: number}
+
+    export const useCancelWithdraw = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelWithdraw>>, TError,CancelWithdrawMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelWithdraw>>,
+        TError,
+        CancelWithdrawMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelWithdrawMutationOptions(options), queryClient);
+    }
