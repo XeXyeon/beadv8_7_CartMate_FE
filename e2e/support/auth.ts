@@ -1,13 +1,13 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
-import { ACCOUNTS, AUTH_DIR, authFile, resolvePassword, type AccountKey } from './config.mjs';
+import { ACCOUNTS, AUTH_DIR, adminOtpSecret, authFile, resolvePassword, type AccountKey } from './config.mjs';
 import { totpCode, totpMillisToNextStep, totpStep } from './totp';
 
 export type { AccountKey };
 export { authFile };
 
-const BOOTSTRAP_HINT = '신뢰 기기 쿠키를 다시 만들려면 `npm run e2e:bootstrap -- --apply`를 사람이 실행하세요.';
+const BOOTSTRAP_HINT = '신뢰 기기 쿠키를 다시 만들려면 `npm run e2e:bootstrap`을 실행하세요.';
 const ADMIN_STEP_FILE = path.join(AUTH_DIR, 'admin-otp-step.txt');
 
 type StoredCookie = Awaited<ReturnType<BrowserContext['cookies']>>[number];
@@ -51,7 +51,7 @@ async function waitLoginOutcome(page: Page): Promise<'done' | 'mfa' | { error: s
 /**
  * 저장된 신뢰 기기 쿠키로 UI 로그인하고, BE가 회전시킨 쿠키까지 포함한 storageState를 e2e/.auth/<계정>.json에 다시 저장한다.
  * 회전하면 옛 쿠키는 못 쓰므로, 테스트 안에서 UI 로그인을 다시 할 때도 이 함수를 써서 파일을 최신으로 유지한다.
- * 관리자는 신뢰 기기를 쓰지 않고 OTP 앱 코드(E2E_ADMIN_OTP_SECRET)로 로그인한다.
+ * 관리자는 신뢰 기기를 쓰지 않고 OTP 앱 코드(bootstrap이 만든 비밀키)로 로그인한다.
  */
 export async function loginAndSaveState(context: BrowserContext, key: AccountKey): Promise<void> {
     const isAdmin = ACCOUNTS[key].role === 'ADMIN';
@@ -68,7 +68,7 @@ export async function loginAndSaveState(context: BrowserContext, key: AccountKey
             if (!isAdmin) throw new Error(`${key}: 신뢰 기기가 거절돼 메일 인증을 요구합니다(30일 만료 등). ${BOOTSTRAP_HINT}`);
             await submitAdminOtp(page);
         } else if (isAdmin && new URL(page.url()).pathname.startsWith('/otp-setup')) {
-            throw new Error('admin: OTP가 아직 등록되지 않았습니다. 사람이 e2e-admin으로 OTP를 등록하고 E2E_ADMIN_OTP_SECRET을 적으세요.');
+            throw new Error('admin: OTP가 아직 등록되지 않았습니다. `npm run e2e:bootstrap`을 실행하세요.');
         }
 
         await page.waitForLoadState('load');
@@ -93,10 +93,10 @@ export async function loginAndSaveState(context: BrowserContext, key: AccountKey
 }
 
 async function submitAdminOtp(page: Page) {
-    const secret = process.env.E2E_ADMIN_OTP_SECRET?.trim();
-    if (!secret) throw new Error('admin: E2E_ADMIN_OTP_SECRET이 없습니다. 사람이 OTP를 등록하고 비밀키를 .env.e2e에 적으세요.');
+    const secret = adminOtpSecret();
+    if (!secret) throw new Error('admin: OTP 비밀키가 없습니다. `npm run e2e:bootstrap`을 실행하세요.');
     if (await page.getByText('이메일 인증', { exact: true }).isVisible()) {
-        throw new Error('admin: OTP가 아직 등록되지 않아 메일 인증을 요구합니다. 사람이 OTP를 등록하세요.');
+        throw new Error('admin: OTP가 아직 등록되지 않아 메일 인증을 요구합니다. `npm run e2e:bootstrap`을 실행하세요.');
     }
     // 같은 30초 구간의 코드는 두 번 쓸 수 없다(BE last_used_step). 직전에 쓴 구간이면 다음 구간까지 기다린다.
     const last = existsSync(ADMIN_STEP_FILE) ? Number(readFileSync(ADMIN_STEP_FILE, 'utf8')) : 0;

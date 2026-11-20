@@ -1,21 +1,22 @@
-// E2E 고정 테스트 계정 5개를 DB에 한 번 넣는다(운영 DB에 쓰는 스크립트).
+// E2E 고정 테스트 계정 5개를 로컬 도커 DB(e2e/infra)에 넣는다. 로컬 호스트가 아니면 config가 거절한다.
 //
-//   npm run e2e:bootstrap              드라이런: DB에 연결해 읽기만 하고, 무엇을 쓸지 출력한다.
-//   npm run e2e:bootstrap -- --apply   실제로 쓴다. 대상 DB 이름을 직접 입력해 확인한 뒤에만 쓴다(터미널에서만).
+//   npm run e2e:bootstrap              계정을 넣는다(이미 있으면 건너뜀 = 멱등)
+//   npm run e2e:bootstrap -- --dry-run 읽기만 하고 무엇을 쓸지 출력한다
 //
-// 쓰는 행(계정 5개 한정 · 이미 있으면 건너뛴다 = 멱등):
-//   member DB : member(5), member_address(buyer1 · buyer2), seller(e2e-seller), trusted_device(관리자 제외 4)
+// 쓰는 행(계정 5개 한정):
+//   member DB : member(5), member_address(buyer1 · buyer2), seller(e2e-seller), trusted_device(관리자 제외 4),
+//               member_otp(e2e-admin, 로컬 암호화 키로 암호화한 OTP 비밀키)
 //   payment DB: wallet(5, 잔액 0)
-// 이 5개 이메일 밖의 행은 읽지도 쓰지도 않는다. 신뢰 기기 쿠키는 e2e/.auth/<계정>.json 에 저장한다(커밋 금지).
-// 필요한 환경 변수는 .env.e2e.example 참고. 비밀번호 · 쿠키 값은 출력하지 않는다.
-import { createHash, randomBytes } from 'node:crypto';
+// 이 5개 이메일 밖의 행은 읽지도 쓰지도 않는다. 신뢰 기기 쿠키는 e2e/.auth/<계정>.json, 관리자 OTP 비밀키는
+// e2e/.auth/admin-otp-secret.txt 에 저장한다(커밋 금지). 비밀번호 · 쿠키 · 비밀키는 출력하지 않는다.
+import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import readline from 'node:readline/promises';
 import bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
-import { ACCOUNTS, ACCOUNT_KEYS, AUTH_DIR, authFile, loadE2eEnv, resolveBaseUrl, resolveDb, resolvePassword } from '../e2e/support/config.mjs';
+import { ACCOUNTS, ACCOUNT_KEYS, ADMIN_OTP_SECRET_FILE, AUTH_DIR, authFile, loadE2eEnv, resolveBaseUrl, resolveDb, resolveOtpKey, resolvePassword } from '../e2e/support/config.mjs';
 
-const apply = process.argv.includes('--apply');
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const dryRun = process.argv.includes('--dry-run');
 const DEVICE_NAME = 'e2e-bootstrap';
 const DEVICE_TTL_DAYS = 29; // BE 신뢰 기기 기본 30일보다 짧게. BE는 로그인 때 토큰만 회전시키고 만료는 늘리지 않는다.
 const DEVICE_RENEW_BEFORE_DAYS = 7; // 만료까지 이보다 적게 남았으면 다시 발급한다.
@@ -29,6 +30,7 @@ const REQUIRED_COLUMNS = {
     seller: ['member_id', 'seller_type', 'phone_number', 'bank_name', 'account_holder', 'account_number', 'status', 'created_at', 'updated_at'],
     trusted_device: ['member_id', 'token_hash', 'device_name', 'last_used_at', 'expires_at', 'created_at', 'updated_at'],
     wallet: ['member_id', 'balance', 'version', 'created_at', 'updated_at'],
+    member_otp: ['member_id', 'secret_encrypted', 'enabled_at', 'last_used_step', 'created_at', 'updated_at'],
 };
 
 function fail(message) {
@@ -92,7 +94,7 @@ try {
 const member = await connect(memberDb);
 const payment = await connect(paymentDb);
 try {
-    await assertColumns(member, memberDb.database, ['member', 'member_address', 'seller', 'trusted_device']);
+    await assertColumns(member, memberDb.database, ['member', 'member_address', 'seller', 'trusted_device', 'member_otp']);
     await assertColumns(payment, paymentDb.database, ['wallet']);
 
     // ── 현재 상태를 읽어 할 일을 정한다(읽기만) ───────────────────────────────
@@ -120,6 +122,11 @@ try {
         if (a.seller) {
             const [[seller]] = row ? await member.query('SELECT id FROM seller WHERE member_id = ?', [row.id]) : [[null]];
             if (!seller) item.actions.push('seller');
+        }
+        if (a.role === 'ADMIN') {
+            const [[otp]] = row ? await member.query('SELECT enabled_at FROM member_otp WHERE member_id = ?', [row.id]) : [[null]];
+            // 비밀키 파일이 없으면 값을 알 수 없으므로 이 계정의 OTP 행만 새로 심는다.
+            if (!otp?.enabled_at || !existsSync(ADMIN_OTP_SECRET_FILE)) item.actions.push('otp');
         }
         if (a.trusted) {
             const token = readTrustedDeviceToken(key);
@@ -151,22 +158,16 @@ try {
         console.log('\n쓸 것이 없습니다.');
         process.exit(0);
     }
-    if (!apply) {
-        console.log('\n드라이런이라 아무것도 쓰지 않았습니다. 실제로 쓰려면: npm run e2e:bootstrap -- --apply');
+    if (dryRun) {
+        console.log('\n--dry-run이라 아무것도 쓰지 않았습니다.');
         process.exit(0);
     }
-
-    // ── 사람의 확인 ─────────────────────────────────────────────────────────
-    if (!process.stdin.isTTY) fail('--apply는 터미널에서 사람이 직접 확인해야 합니다(비대화형 실행 불가).');
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question(`\n위 계정 행을 ${memberDb.host}의 ${memberDb.database} · ${paymentDb.database}에 씁니다. 계속하려면 member DB 이름(${memberDb.database})을 입력: `);
-    rl.close();
-    if (answer.trim() !== memberDb.database) fail('입력이 달라 취소했습니다. 아무것도 쓰지 않았습니다.');
 
     // ── 쓰기 ───────────────────────────────────────────────────────────────
     const passwordHash = await bcrypt.hash(password, 10);
     mkdirSync(AUTH_DIR, { recursive: true });
     const written = [];
+    let pendingOtpSecret = null; // DB에 커밋된 뒤에 파일로 쓴다(둘이 어긋나지 않게)
     process.on('exit', (code) => {
         if (code !== 0 && written.length) console.error(`\n실패 전까지 쓴 행:\n  ${written.join('\n  ')}\n(다시 실행하면 빠진 행만 채웁니다)`);
     });
@@ -203,6 +204,18 @@ try {
                 );
                 written.push(`${a.email}: seller#${res.insertId}`);
             }
+            if (p.actions.includes('otp')) {
+                // 이 계정의 OTP 행만 지우고 새로 심는다. 이미 쓰인 구간(last_used_step)은 0으로 시작한다.
+                const secret = randomBytes(20);
+                await member.query('DELETE FROM member_otp WHERE member_id = ?', [memberId]);
+                await member.query(
+                    `INSERT INTO member_otp (created_at, updated_at, member_id, secret_encrypted, enabled_at, last_used_step)
+                     VALUES (NOW(6), NOW(6), ?, ?, NOW(6), 0)`,
+                    [memberId, sealOtpSecret(secret, resolveOtpKey())],
+                );
+                pendingOtpSecret = base32Encode(secret);
+                written.push(`${a.email}: member_otp + e2e/.auth/admin-otp-secret.txt`);
+            }
             if (p.actions.includes('trusted_device')) {
                 // 이 스크립트가 만든 이 계정의 이전 신뢰 기기만 지우고 새로 발급한다.
                 await member.query('DELETE FROM trusted_device WHERE member_id = ? AND device_name = ?', [memberId, DEVICE_NAME]);
@@ -217,6 +230,10 @@ try {
                 written.push(`${a.email}: trusted_device + e2e/.auth/${p.key}.json`);
             } else {
                 await member.commit();
+            }
+            if (pendingOtpSecret) {
+                saveOtpSecret(pendingOtpSecret);
+                pendingOtpSecret = null;
             }
         } catch (e) {
             await member.rollback().catch(() => {});
@@ -234,7 +251,6 @@ try {
 
     console.log('\n쓴 행');
     for (const line of written) console.log(`  ${line}`);
-    console.log('\n다음 할 일(사람): e2e-admin으로 한 번 로그인해 OTP를 등록하고, 화면의 비밀키를 .env.e2e의 E2E_ADMIN_OTP_SECRET에 적으세요.');
 } finally {
     await member.end().catch(() => {});
     await payment.end().catch(() => {});
@@ -255,4 +271,36 @@ function saveTrustedDeviceCookie(key, token, baseUrl) {
     writeFileSync(tmp, JSON.stringify(state), { mode: 0o600 });
     chmodSync(tmp, 0o600);
     renameSync(tmp, file);
+}
+
+/** BE OtpSecretCipher와 같은 형식: "v1:" + Base64(IV 12바이트 + AES-256-GCM 암호문 + 태그 16바이트). */
+function sealOtpSecret(secret, base64Key) {
+    const key = Buffer.from(base64Key, 'base64');
+    if (key.length !== 32) throw new Error('E2E_OTP_ENCRYPTION_KEY는 Base64 32바이트여야 합니다.');
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    const sealed = Buffer.concat([cipher.update(secret), cipher.final(), cipher.getAuthTag()]);
+    return `v1:${Buffer.concat([iv, sealed]).toString('base64')}`;
+}
+
+function base32Encode(bytes) {
+    let bits = 0;
+    let value = 0;
+    let out = '';
+    for (const byte of bytes) {
+        value = (value << 8) | byte;
+        bits += 8;
+        while (bits >= 5) {
+            out += BASE32[(value >>> (bits - 5)) & 31];
+            bits -= 5;
+        }
+    }
+    if (bits > 0) out += BASE32[(value << (5 - bits)) & 31];
+    return out;
+}
+
+function saveOtpSecret(base32) {
+    mkdirSync(AUTH_DIR, { recursive: true });
+    writeFileSync(ADMIN_OTP_SECRET_FILE, base32, { mode: 0o600 });
+    chmodSync(ADMIN_OTP_SECRET_FILE, 0o600);
 }
