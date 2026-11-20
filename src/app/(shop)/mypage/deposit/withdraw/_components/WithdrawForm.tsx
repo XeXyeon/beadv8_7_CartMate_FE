@@ -12,87 +12,99 @@ import {
     getGetMyWalletTransactionSummaryQueryKey,
     getGetMyWalletTransactionsQueryKey,
     useGetMyWallet,
-    walletWithdrawConfirm,
-    walletWithdrawOrder,
 } from '@/api/generated/wallet-controller/wallet-controller';
 import { ApiError, errorMessage } from '@/api/http';
+import { MY_PAYOUT_ACCOUNT_KEY, requestWithdraw, useMyPayoutAccount, type WithdrawStatus } from '@/api/payout';
 import { INPUT_CLASS } from '@/app/(shop)/checkout/_components/DeliveryAddressFields';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
+import PayoutAccountSection from './PayoutAccountSection';
 
 type Step =
     | { kind: 'input' }
-    // 출금 요청(PENDING)이 만들어졌고 아직 잔액은 그대로다. 확정해야 잔액이 줄어든다.
-    // balanceBefore: 요청할 때의 사용 가능 금액. 확정 결과를 모른 채 잔액을 다시 받으면 이미 빠진 금액을 또 빼게 되므로 고정해 둔다.
-    | { kind: 'confirm'; withdrawOrderId: number; amount: number; balanceBefore?: number }
-    | { kind: 'done'; amount: number; balance?: number };
+    // 신청 전 확인. 아직 BE에 보내지 않았다.
+    // balanceBefore: 확인 화면에 들어올 때의 사용 가능 금액(신청 뒤 잔액을 다시 받아도 보여 줄 값이 바뀌지 않게 고정)
+    | { kind: 'confirm'; amount: number; balanceBefore?: number }
+    | { kind: 'done'; amount: number; status: WithdrawStatus; bankName?: string; accountNumberMasked?: string };
 
-// 출금은 두 단계다: 요청(walletWithdrawOrder)으로 출금 건을 만들고, 확인 화면에서 확정(walletWithdrawConfirm)하면 잔액이 줄어든다.
+// 출금은 신청 한 번이다: BE가 신청을 받으면 바로 잔액을 빼고(PENDING) 이체는 따로 처리한다. (QA-3#1)
+// 확인 화면은 화면 안에서만 거치고, "출금 신청"을 누를 때 한 번만 BE를 부른다.
 // 두 번 나가지 않게 하는 장치:
-// - 요청: 같은 금액의 재시도는 같은 멱등성 키를 보내 BE가 같은 출금 건을 돌려준다. 금액을 바꾸면 새 키를 만든다.
-// - 확정: 같은 출금 건을 다시 확정해도 BE는 이미 완료된 건을 그대로 성공으로 돌려주고 다시 빼지 않는다.
-// - 화면: 요청 · 확정 중에는 버튼을 막고, 진행 중 플래그(ref)로 같은 렌더 안의 연속 클릭도 막는다.
+// - 같은 금액의 재시도(응답 유실 · 서버 오류)는 같은 멱등성 키를 보내 BE가 같은 출금 건을 돌려준다. 금액을 바꾸면 새 키를 만든다.
+// - 결과를 모르는 신청이 있으면(unresolved) 그 금액으로만 다시 신청할 수 있다. 금액을 바꾸면 새 키라 첫 신청이 처리됐을 때 한 번 더 나간다.
+// - 신청 중에는 버튼을 막고, 진행 중 플래그(ref)로 같은 렌더 안의 연속 클릭도 막는다.
 export default function WithdrawForm() {
     const queryClient = useQueryClient();
     const wallet = useGetMyWallet();
     const balance = wallet.data?.data?.balance;
+    const payout = useMyPayoutAccount();
+    const account = payout.data;
     const [amount, setAmount] = useState<number | null>(null);
     const [step, setStep] = useState<Step>({ kind: 'input' });
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // 결과를 모르는 출금 신청의 금액. 있는 동안은 금액을 바꿀 수 없다
+    const [unresolved, setUnresolved] = useState<number | null>(null);
     const inFlightRef = useRef(false);
-    // 금액별 멱등성 키. 같은 금액으로 다시 요청하면(응답 유실 · 뒤로 갔다 다시 요청) 같은 출금 건을 받는다.
+    // 금액별 멱등성 키. 같은 금액으로 다시 신청하면(응답 유실 · 서버 오류) 같은 출금 건을 받는다.
     const keyRef = useRef<{ amount: number; key: string } | null>(null);
 
     const amountError = validateWithdrawAmount(amount, balance);
+    const noAccount = account === null;
 
-    async function handleRequest() {
-        if (inFlightRef.current || amount === null || amountError) return;
-        inFlightRef.current = true;
-        setSubmitting(true);
-        setError(null);
-        try {
-            if (keyRef.current?.amount !== amount) keyRef.current = { amount, key: crypto.randomUUID() };
-            const res = await walletWithdrawOrder({ amount, idempotencyKey: keyRef.current.key });
-            const withdrawOrderId = res.data?.withdrawOrderId;
-            if (withdrawOrderId === undefined) throw new Error('출금 요청을 만들지 못했습니다. 잠시 후 다시 시도해주세요.');
-            setStep({ kind: 'confirm', withdrawOrderId, amount: res.data?.amount ?? amount, balanceBefore: balance });
-        } catch (e) {
-            setError(withdrawErrorMessage(e, '출금 요청을 만들지 못했습니다. 잠시 후 다시 시도해주세요.'));
-            // 잔액이 모자라다는 답이면 화면의 잔액이 낡았을 수 있다
-            void wallet.refetch();
-        } finally {
-            inFlightRef.current = false;
-            setSubmitting(false);
-        }
+    function refreshWallet() {
+        void queryClient.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetMyWalletTransactionsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetMyWalletTransactionSummaryQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getMyPageDashboardQueryKey() });
     }
 
-    async function handleConfirm() {
+    async function handleSubmit() {
         if (inFlightRef.current || step.kind !== 'confirm') return;
         inFlightRef.current = true;
         setSubmitting(true);
         setError(null);
+        const target = step.amount;
         try {
-            const res = await walletWithdrawConfirm({ withdrawOrderId: step.withdrawOrderId });
-            // 이 출금 건은 끝났으므로 다음 출금은 새 키로 요청한다
+            if (keyRef.current?.amount !== target) keyRef.current = { amount: target, key: crypto.randomUUID() };
+            const res = await requestWithdraw({ amount: target, idempotencyKey: keyRef.current.key });
+            const order = res.data;
+            if (!order?.withdrawOrderId) throw new Error('출금 신청 결과를 받지 못했습니다. 예치금 내역을 확인해주세요.');
+            // 이 출금 건은 끝났으므로 다음 출금은 새 키로 신청한다
             keyRef.current = null;
-            setStep({ kind: 'done', amount: step.amount, balance: res.data?.balance });
-            void queryClient.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
-            void queryClient.invalidateQueries({ queryKey: getGetMyWalletTransactionsQueryKey() });
-            void queryClient.invalidateQueries({ queryKey: getGetMyWalletTransactionSummaryQueryKey() });
-            void queryClient.invalidateQueries({ queryKey: getMyPageDashboardQueryKey() });
+            setUnresolved(null);
+            refreshWallet();
+            if (order.status === 'FAILED' || order.status === 'CANCELED') {
+                // 돈이 나가지 않았고 잔액도 돌아왔다
+                setStep({ kind: 'input' });
+                setError(order.resultMessage || '출금하지 못했습니다. 잠시 후 다시 신청해주세요.');
+                return;
+            }
+            // 받는 계좌는 BE가 신청 때 고정한 값(출금 건)을 보인다
+            setStep({
+                kind: 'done',
+                amount: order.amount ?? target,
+                status: order.status,
+                bankName: order.bankName,
+                accountNumberMasked: order.accountNumberMasked,
+            });
         } catch (e) {
             if (isUnknownResult(e)) {
-                // 출금 건 단위로 멱등이라 다시 확정해도 한 번만 빠진다. 이미 처리됐다면 다시 확정하면 성공으로 돌아온다.
-                setError('출금 결과를 확인하지 못했습니다. 다시 확정해도 한 번만 출금됩니다. 계속 실패하면 예치금 내역을 확인해주세요.');
+                // 같은 금액으로 다시 신청하면 같은 키를 보내므로 한 번만 빠진다. 처리됐을 수 있으니 잔액 · 내역을 다시 받는다
+                setUnresolved(target);
+                refreshWallet();
+                setError('출금 신청 결과를 확인하지 못했습니다. 같은 금액으로 다시 신청해도 한 번만 출금됩니다. 계속 실패하면 예치금 내역을 확인해주세요.');
             } else {
-                // BE가 거절한 출금 건(실패 · 취소 · 잔액 부족 등)은 다시 눌러도 같은 답이므로 입력 단계로 돌아가고,
-                // 같은 키로 다시 요청하면 그 건을 또 받으므로 다음 요청은 새 키로 한다.
+                // BE가 거절했다(잔액 부족 · 계좌 없음 등). 같은 키로 다시 보내도 같은 답이라 다음 신청은 새 키로 한다
                 keyRef.current = null;
+                setUnresolved(null);
                 setStep({ kind: 'input' });
-                setError(withdrawErrorMessage(e, '출금을 확정하지 못했습니다. 금액을 확인한 뒤 다시 요청해주세요.'));
+                setError(withdrawErrorMessage(e, '출금을 신청하지 못했습니다. 금액을 확인한 뒤 다시 신청해주세요.'));
                 void wallet.refetch();
+                if (e instanceof ApiError && e.resultCode?.endsWith('WALLET_PAYOUT_ACCOUNT_REQUIRED')) {
+                    void queryClient.invalidateQueries({ queryKey: MY_PAYOUT_ACCOUNT_KEY });
+                }
             }
         } finally {
             inFlightRef.current = false;
@@ -101,12 +113,17 @@ export default function WithdrawForm() {
     }
 
     if (step.kind === 'done') {
-        const balanceText = step.balance === undefined ? '' : ` 남은 사용 가능 금액은 ${formatPrice(step.balance)}입니다.`;
+        const completed = step.status === 'COMPLETED';
+        const where = step.bankName ? ` ${step.bankName} ${step.accountNumberMasked ?? ''} 계좌로` : '';
         return (
             <Card padding={5}>
                 <EmptyState
-                    title="출금이 완료되었습니다"
-                    description={`${formatPrice(step.amount)}을 출금했습니다.${balanceText}`}
+                    title={completed ? '출금이 완료되었습니다' : '출금을 신청했습니다'}
+                    description={
+                        completed
+                            ? `${formatPrice(step.amount)}을${where} 출금했습니다.`
+                            : `${formatPrice(step.amount)}을 예치금에서 출금했습니다.${where} 보내는 중이며, 처리 결과는 예치금 내역에서 확인할 수 있습니다.`
+                    }
                     icon={<Icon name="check_circle" />}
                     actions={
                         <div className="flex flex-wrap justify-center gap-2">
@@ -139,6 +156,10 @@ export default function WithdrawForm() {
                     <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 font-body-md text-body-md">
                         <dt className="text-secondary">출금 금액</dt>
                         <dd className="text-right font-semibold text-on-surface">{formatPrice(step.amount)}</dd>
+                        <dt className="text-secondary">받는 계좌</dt>
+                        <dd className="text-right text-on-surface">
+                            {account ? `${account.bankName} ${account.maskedAccountNumber} · ${account.accountHolder}` : '-'}
+                        </dd>
                         <dt className="text-secondary">출금 전 사용 가능 금액</dt>
                         <dd className="text-right text-on-surface">{before === undefined ? '-' : formatPrice(before)}</dd>
                         <dt className="text-secondary">출금 후 사용 가능 금액</dt>
@@ -146,6 +167,7 @@ export default function WithdrawForm() {
                             {after === undefined ? '-' : formatPrice(after)}
                         </dd>
                     </dl>
+                    <Text type="supporting">신청하면 예치금에서 바로 빠지고, 위 계좌로 보내 드립니다.</Text>
                 </Card>
 
                 {error ? (
@@ -158,18 +180,18 @@ export default function WithdrawForm() {
                     <Button
                         label="금액 다시 입력"
                         variant="secondary"
-                        isDisabled={submitting}
+                        isDisabled={submitting || unresolved !== null}
                         onClick={() => {
                             setError(null);
                             setStep({ kind: 'input' });
                         }}
                     />
                     <Button
-                        label="출금 확정"
+                        label="출금 신청"
                         variant="primary"
-                        isDisabled={submitting}
+                        isDisabled={submitting || !account}
                         isLoading={submitting}
-                        onClick={handleConfirm}
+                        onClick={handleSubmit}
                     />
                 </div>
             </div>
@@ -178,6 +200,8 @@ export default function WithdrawForm() {
 
     return (
         <div className="flex w-full flex-col gap-6">
+            <PayoutAccountSection account={account} isLoading={payout.isPending} loadError={payout.error} onRetry={() => payout.refetch()} />
+
             <Card padding={5} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                     <label htmlFor="withdraw-amount" className="font-label-md text-label-md text-on-surface">
@@ -219,12 +243,16 @@ export default function WithdrawForm() {
                 </Card>
             ) : null}
 
+            {noAccount ? <Text type="supporting">출금 계좌를 등록하면 출금을 요청할 수 있습니다.</Text> : null}
             <Button
                 label="출금 요청"
                 variant="primary"
-                isDisabled={wallet.isPending || amountError !== null || submitting}
-                isLoading={submitting}
-                onClick={handleRequest}
+                isDisabled={wallet.isPending || !account || amountError !== null || submitting}
+                onClick={() => {
+                    if (amount === null || amountError) return;
+                    setError(null);
+                    setStep({ kind: 'confirm', amount, balanceBefore: balance });
+                }}
             />
         </div>
     );
@@ -239,7 +267,7 @@ export function validateWithdrawAmount(amount: number | null, balance: number | 
     return null;
 }
 
-// 응답을 받지 못했거나 서버 오류라 출금 확정 여부를 모르는 경우
+// 응답을 받지 못했거나 서버 오류라 출금 신청이 처리됐는지 모르는 경우
 function isUnknownResult(error: unknown): boolean {
     if (!(error instanceof ApiError)) return true;
     return error.status === 0 || error.status >= 500;
@@ -250,6 +278,7 @@ function withdrawErrorMessage(error: unknown, fallback: string): string {
         const code = error.resultCode ?? '';
         if (code.endsWith('WALLET_INSUFFICIENT_BALANCE')) return '사용 가능 금액이 모자라 출금할 수 없습니다. 금액을 다시 확인해주세요.';
         if (code.endsWith('WALLET_INVALID_AMOUNT')) return '출금 금액이 올바르지 않습니다.';
+        if (code.endsWith('WALLET_PAYOUT_ACCOUNT_REQUIRED')) return '출금 계좌를 먼저 등록해주세요.';
         return errorMessage(error, fallback);
     }
     if (error instanceof Error && error.message) return error.message;

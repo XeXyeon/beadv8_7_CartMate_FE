@@ -194,36 +194,46 @@ test.describe('구매자 e2e-buyer1 — 배송지', () => {
 test.describe('판매자 e2e-seller — 출금', () => {
     test.use({ storageState: authFile('seller') });
 
-    // FE 버그(이슈 QA-3#1): 출금 확정이 BE에 없는 엔드포인트를 불러 "출금 확정"에서 멈춘다. 고쳐지면 fixme를 푼다.
-    test.fixme('E19 예치금 출금', async ({ page, request }) => {
-        // 출금하려면 출금 계좌가 있어야 한다(없으면 "출금 계좌를 먼저 등록해주세요"). 그런데 FE에는 출금 계좌 등록 화면이 없어서(이슈 QA-3#1)
-        // 준비 단계에서만 API로 등록한다(PUT /api/members/me/payout-account, 이메일 인증 필요). 이 단계는 멱등이다.
-        // 이미 등록돼 있으면 건너뛴다(인증번호 재발송은 60초 · 30분에 5번으로 제한돼 있다)
+    // 출금 계좌 등록(이메일 인증 → 계좌) → 출금 신청 한 번 → 잔액 차감 · 거래내역(이슈 QA-3#1 · QA-3#2)
+    test('E19 예치금 출금', async ({ page, request }) => {
+        await page.goto('/mypage/deposit/withdraw');
+        // 출금 계좌가 없으면 화면에서 등록한다. 이미 있으면 건너뛴다(인증번호 재발송은 60초 · 30분에 5번으로 제한돼 있다)
         const mine = await request.get('/api/members/me/payout-account');
         if (!(await mine.json()).data) {
-            // 이메일 인증번호(로그에서 읽는다) → 인증 → 출금 계좌 등록(국민은행, 가짜 계좌번호)
+            await expect(page.getByText('출금 계좌 등록')).toBeVisible();
+            await expect(page.getByRole('button', { name: '출금 요청' })).toBeDisabled();
             const since = Date.now();
-            const sent = await request.post('/api/members/me/payout-account/email-code');
-            expect(sent.ok(), `인증번호 발송 ${sent.status()} ${await sent.text()}`).toBe(true);
+            await page.getByRole('button', { name: '인증번호 받기' }).click();
             const code = await waitForMailCode(ACCOUNTS.seller.email, since);
-            const verified = await request.post('/api/members/me/payout-account/email-code/verify', { data: { code } });
-            expect(verified.ok(), `인증 ${verified.status()} ${await verified.text()}`).toBe(true);
-            const registered = await request.put('/api/members/me/payout-account', { data: { bankName: '국민은행', accountHolder: 'e2e판매자', accountNumber: '1002000000001' } });
-            expect(registered.ok(), `출금 계좌 등록 ${registered.status()} ${await registered.text()}`).toBe(true);
+            await page.locator('#payout-email-code').fill(code);
+            await page.getByRole('button', { name: '인증하기' }).click();
+            await page.locator('#payout-bank').selectOption('국민은행');
+            await page.locator('#payout-holder').fill('e2e판매자');
+            await page.locator('#payout-account-number').fill('1002000000001');
+            await page.getByRole('button', { name: '계좌 등록' }).click();
+            await expect(page.getByRole('button', { name: '계좌 변경' })).toBeVisible({ timeout: 20_000 });
+            expect((await (await request.get('/api/members/me/payout-account')).json()).data?.bankName).toBe('국민은행');
         }
         await setWalletBalance('seller', 100_000);
         await page.goto('/mypage/deposit/withdraw');
         await page.locator('#withdraw-amount').fill('30000');
         await page.getByRole('button', { name: '출금 요청' }).click();
-        await page.getByRole('button', { name: '출금 확정' }).click();
-        await expect(page.getByText('출금이 완료되었습니다')).toBeVisible({ timeout: 60_000 });
-        await expect(page.getByText(`${won(30_000)}을 출금했습니다.`)).toBeVisible();
+        // 확인 화면은 화면 안에서만 거치고, "출금 신청"에서 BE를 한 번만 부른다
+        const requested = page.waitForResponse((r) => r.url().endsWith('/api/wallets/me/withdraws') && r.request().method() === 'POST');
+        await page.getByRole('button', { name: '출금 신청' }).click();
+        const res = await requested;
+        expect(res.ok()).toBe(true);
+        const order = (await res.json()).data;
+        expect(order.amount).toBe(30_000);
+        expect(['PENDING', 'PROCESSING', 'COMPLETED']).toContain(order.status);
+        // 신청하면 바로 잔액이 빠지고 이체는 BE가 따로 처리한다(이체가 바로 끝나면 "출금이 완료되었습니다")
+        await expect(page.getByText(/출금을 신청했습니다|출금이 완료되었습니다/)).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByText(new RegExp(`^${won(30_000)}을 .*출금했습니다`))).toBeVisible();
         expect(await walletBalance(request)).toBe(70_000);
 
         // 거래내역에 출금(WITHDRAW) 항목이 보인다
         await page.goto('/mypage/deposit/history');
-        const row = page.getByText('예치금 출금').first();
-        await expect(row).toBeVisible();
-        await expect(page.getByText('30,000').first()).toBeVisible();
+        // 화면 설명 등 다른 곳에도 "예치금 출금"이 있어 거래내역 표의 행으로 찾는다
+        await expect(page.getByRole('row', { name: /예치금 출금.*-30,000원/ }).first()).toBeVisible();
     });
 });
