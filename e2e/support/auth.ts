@@ -31,6 +31,16 @@ function writeAuthFile(key: AccountKey, content: string) {
     renameSync(tmp, file);
 }
 
+/** 테스트 안에서 직접 UI 로그인한 컨텍스트의 쿠키(회전된 신뢰 기기 쿠키 포함)를 e2e/.auth/<계정>.json에 다시 저장한다. */
+export async function saveAuthState(context: BrowserContext, key: AccountKey): Promise<void> {
+    writeAuthFile(key, JSON.stringify(await context.storageState()));
+}
+
+/** 신뢰 기기 쿠키만 담은 storageState(로그인 전 상태에서 UI 로그인을 시험할 때 쓴다). */
+export function trustedDeviceOnlyState(key: AccountKey) {
+    return { cookies: [readTrustedDeviceCookie(key)], origins: [] as never[] };
+}
+
 async function submitCredentials(page: Page, key: AccountKey) {
     await page.goto('/login');
     await page.locator('#user-email').fill(ACCOUNTS[key].email);
