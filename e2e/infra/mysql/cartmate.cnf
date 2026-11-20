@@ -1,0 +1,11 @@
+# BE k8s/infra/mysql-config.yaml 의 cartmate.cnf 와 같다
+[mysqld]
+innodb_buffer_pool_size=64M
+performance_schema=OFF
+max_connections=40
+temptable_max_ram=32M
+tmp_table_size=16M
+skip-name-resolve
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+default-time-zone='+09:00'

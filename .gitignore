@@ -49,3 +49,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 !.env.e2e.example
+
+# e2e 로컬 환경: BE 소스 사본 · 빌드 표식
+/e2e/infra/.be-src/
+/e2e/infra/.images-built

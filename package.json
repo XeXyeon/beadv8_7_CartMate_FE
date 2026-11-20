@@ -13,7 +13,11 @@
     "seed:local": "bash scripts/seed-local.sh",
     "e2e": "playwright test",
     "e2e:demo": "E2E_DEMO=1 playwright test",
-    "e2e:bootstrap": "node scripts/e2e-bootstrap.mjs"
+    "e2e:bootstrap": "node scripts/e2e-bootstrap.mjs",
+    "e2e:env:up": "bash e2e/infra/env.sh up",
+    "e2e:env:down": "bash e2e/infra/env.sh down",
+    "e2e:env:reset": "bash e2e/infra/env.sh reset",
+    "e2e:env:status": "bash e2e/infra/env.sh status"
   },
   "dependencies": {
     "@astryxdesign/core": "0.7.14",
