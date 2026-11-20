@@ -1,0 +1,95 @@
+name: CI
+
+# PR · push마다 린트와 빌드를 확인하고, main에 push(병합)됐을 때만 Vercel 운영에 배포한다
+# 배포는 Vercel CLI로 한다(Vercel GitHub 앱 연결 없이). 빌드는 이 러너에서 하고, 결과물(.vercel/output)만 올린다
+#   필요한 Secret: VERCEL_TOKEN · VERCEL_ORG_ID · VERCEL_PROJECT_ID
+#   환경변수(API_BASE_URL · NEXT_PUBLIC_* · SITE_URL)는 Vercel 프로젝트 설정에 두고, vercel pull로 받아 빌드에 쓴다
+on:
+  pull_request:
+    branches: [ dev, main ]
+  push:
+    branches: [ dev, main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 26.13.1   # 로컬 개발 버전과 같다. Vercel 실행 환경은 기본값 26.x
+
+# 액션은 태그가 아니라 커밋 해시로 고정한다(태그는 액션 저장소 쪽에서 다른 커밋으로 옮길 수 있다). 주석은 해시의 버전
+jobs:
+  # 린트와 빌드(next build가 타입 검사를 같이 한다)
+  ci-pipeline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  # main에 push(병합)됐거나 main에서 수동 실행했을 때만, 린트 · 빌드가 통과한 뒤 운영에 배포한다
+  deploy:
+    needs: ci-pipeline
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # 배포가 겹치면 먼저 시작한 배포를 끝까지 하고 다음 배포를 한다
+    concurrency:
+      group: vercel-production
+      cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # CLI 버전은 고정한다(latest는 실행할 때마다 다른 버전이 설치될 수 있다)
+      - name: Install Vercel CLI
+        run: npm install --global vercel@65.11.0
+
+      # Vercel 프로젝트의 운영(Production) 환경변수와 설정을 받는다
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      # 이 러너에서 만든 결과물만 올린다(--prebuilt). Vercel이 다시 빌드하지 않는다
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
