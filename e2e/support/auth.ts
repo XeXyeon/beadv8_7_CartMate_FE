@@ -104,7 +104,6 @@ export async function loginAndSaveState(context: BrowserContext, key: AccountKey
 
 async function submitAdminOtp(page: Page) {
     const secret = adminOtpSecret();
-    if (!secret) throw new Error('admin: OTP 비밀키가 없습니다. `npm run e2e:bootstrap`을 실행하세요.');
     if (await page.getByText('이메일 인증', { exact: true }).isVisible()) {
         throw new Error('admin: OTP가 아직 등록되지 않아 메일 인증을 요구합니다. `npm run e2e:bootstrap`을 실행하세요.');
     }
