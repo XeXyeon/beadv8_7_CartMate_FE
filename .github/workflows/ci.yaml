@@ -1,8 +1,9 @@
 name: CI
 
-# 배포는 Vercel이 맡는다(GitHub 저장소 연결): main push → 운영 배포, PR → 미리보기 배포
-# 이 워크플로는 PR · push마다 린트와 빌드만 확인한다. 브랜치 보호 규칙에서 이 검사를 필수로 두면
-# CI를 통과한 코드만 main에 들어가고, Vercel은 그 코드만 배포한다
+# PR · push마다 린트와 빌드를 확인하고, main에 push(병합)됐을 때만 Vercel 운영에 배포한다
+# 배포는 Vercel CLI로 한다(Vercel GitHub 앱 연결 없이). 빌드는 이 러너에서 하고, 결과물(.vercel/output)만 올린다
+#   필요한 Secret: VERCEL_TOKEN · VERCEL_ORG_ID · VERCEL_PROJECT_ID
+#   환경변수(API_BASE_URL · NEXT_PUBLIC_* · SITE_URL)는 Vercel 프로젝트 설정에 두고, vercel pull로 받아 빌드에 쓴다
 on:
   pull_request:
     branches: [ dev, main ]
@@ -46,3 +47,49 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # main에 push(병합)됐거나 main에서 수동 실행했을 때만, 린트 · 빌드가 통과한 뒤 운영에 배포한다
+  deploy:
+    needs: ci-pipeline
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # 배포가 겹치면 먼저 시작한 배포를 끝까지 하고 다음 배포를 한다
+    concurrency:
+      group: vercel-production
+      cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # CLI 버전은 고정한다(latest는 실행할 때마다 다른 버전이 설치될 수 있다)
+      - name: Install Vercel CLI
+        run: npm install --global vercel@65.11.0
+
+      # Vercel 프로젝트의 운영(Production) 환경변수와 설정을 받는다
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      # 이 러너에서 만든 결과물만 올린다(--prebuilt). Vercel이 다시 빌드하지 않는다
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
