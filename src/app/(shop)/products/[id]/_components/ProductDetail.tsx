@@ -21,6 +21,7 @@ import { findInventory, toProductOption, type ProductOption } from '@/lib/salesP
 import { SellerTrustPanel, toSellerTrust } from '../../../_components/SellerTrust';
 import ProductActions from './ProductActions';
 import ProductOptions from './ProductOptions';
+import ProductCoupons from './ProductCoupons';
 import ProductPaybackConditions from './ProductPaybackConditions';
 import ProductComments from './ProductComments';
 import ProductReviews from './ProductReviews';
@@ -177,6 +178,7 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                         total={inventory == null ? null : inventory.price * shownQuantity}
                     />
                     {currentId !== null && <ProductPaybackConditions key={currentId} productId={currentId} />}
+                    <ProductCoupons sellerId={post.sellerId} />
                     <SellerTrustPanel sellerId={post.sellerId} fallback={toSellerTrust(post.sellerTrustLevel, post.sellerTrustScore)} />
                 </div>
             </div>

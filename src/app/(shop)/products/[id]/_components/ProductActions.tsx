@@ -69,10 +69,12 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
         !(buyNow.error instanceof ApiError && buyNow.error.status === 401);
 
     // 로그인 확인 전(서버 렌더 화면을 이어받는 중 포함)에는 로그인 화면으로 보내지 않는다. 비로그인이면 로그인 뒤 이 상품으로 돌아온다.
-    // 바로 구매였으면 고른 재고 · 수량을 돌아올 주소에 실어, 돌아온 뒤 이어서 주문서로 보낸다(ISS-27)
+    // 바로 구매였으면 고른 재고 · 수량을 돌아올 주소에 싣고, 이 탭의 sessionStorage에도 같은 값을 표시로 남긴다.
+    // 돌아온 뒤 주소와 표시가 맞을 때만 이어서 주문서로 보낸다(ISS-27). 남이 보낸 링크만으로는 장바구니가 바뀌지 않게 한다
     const requireLogin = (buyNowIntent?: { inventoryId: number; quantity: number }) => {
         if (userLoading) return true;
         if (!isLoggedIn) {
+            if (buyNowIntent) saveBuyNowMark({ postId, ...buyNowIntent });
             const back = buyNowIntent
                 ? `${ROUTES.product(postId)}?${BUY_NOW_PARAM}=${buyNowIntent.inventoryId}&${BUY_NOW_QTY_PARAM}=${buyNowIntent.quantity}`
                 : ROUTES.product(postId);
@@ -98,16 +100,19 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
         startBuyNow({ inventoryId, quantity });
     };
 
-    // 로그인 뒤 바로 구매 의도를 싣고 돌아왔으면 한 번만 이어서 주문서로 보낸다. 주소의 의도는 먼저 지워 새로고침 · 뒤로 가기로 다시 담기지 않게 한다.
+    // 로그인 뒤 바로 구매 의도를 싣고 돌아왔으면 한 번만 이어서 주문서로 보낸다. 주소의 의도와 표시는 실행 여부와 상관없이 먼저 지워
+    // 새로고침 · 뒤로 가기로 다시 담기지 않게 한다. 표시가 없거나(남이 보낸 링크) 값이 다르거나 만료됐으면 실행하지 않는다.
     // useSearchParams는 Suspense 경계가 필요해(cacheComponents) 마운트 뒤 window.location에서 읽는다
     const resumed = useRef(false);
     useEffect(() => {
         if (resumed.current || userLoading || !isLoggedIn) return;
         const intent = readBuyNowIntent(window.location.search);
+        const mark = takeBuyNowMark();
         if (!intent) return;
         resumed.current = true;
         router.replace(ROUTES.product(postId), { scroll: false });
-        if (!buyNowLock.current) startBuyNow({ ...intent, resumed: true });
+        const matches = mark !== null && mark.postId === postId && mark.inventoryId === intent.inventoryId && mark.quantity === intent.quantity;
+        if (matches && !buyNowLock.current) startBuyNow({ ...intent, resumed: true });
         // startBuyNow는 렌더마다 새로 만들어지지만 한 번만 실행하므로 의존성에서 뺀다
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userLoading, isLoggedIn, postId, router]);
@@ -194,6 +199,33 @@ function readBuyNowIntent(search: string): { inventoryId: number; quantity: numb
     const quantity = Number(params.get(BUY_NOW_QTY_PARAM));
     if (!Number.isInteger(inventoryId) || inventoryId <= 0 || !Number.isInteger(quantity) || quantity <= 0) return null;
     return { inventoryId, quantity };
+}
+
+// 이 탭에서 직접 바로 구매를 눌러 로그인 화면으로 갔다는 표시. 로그인(2차 인증 포함)에 넉넉한 시간만 유효하다.
+// 저장소를 못 쓰면(사생활 보호 모드 등) 표시가 없어 이어서 실행되지 않고 상품 상세에 머문다
+const BUY_NOW_MARK_KEY = 'cartmate.buyNowAfterLogin';
+const BUY_NOW_MARK_TTL_MS = 10 * 60 * 1000;
+type BuyNowMark = { postId: number; inventoryId: number; quantity: number };
+function saveBuyNowMark(mark: BuyNowMark) {
+    try {
+        sessionStorage.setItem(BUY_NOW_MARK_KEY, JSON.stringify({ ...mark, expiresAt: Date.now() + BUY_NOW_MARK_TTL_MS }));
+    } catch {
+        // 저장하지 못하면 로그인 뒤 이어서 실행하지 않는다
+    }
+}
+// 표시를 읽고 바로 지운다. 만료됐거나 모양이 다르면 null
+function takeBuyNowMark(): BuyNowMark | null {
+    try {
+        const raw = sessionStorage.getItem(BUY_NOW_MARK_KEY);
+        sessionStorage.removeItem(BUY_NOW_MARK_KEY);
+        if (!raw) return null;
+        const v = JSON.parse(raw) as Partial<BuyNowMark & { expiresAt: number }>;
+        if (typeof v.expiresAt !== 'number' || v.expiresAt < Date.now()) return null;
+        if (typeof v.postId !== 'number' || typeof v.inventoryId !== 'number' || typeof v.quantity !== 'number') return null;
+        return { postId: v.postId, inventoryId: v.inventoryId, quantity: v.quantity };
+    } catch {
+        return null;
+    }
 }
 
 // 바로 구매용으로 고른 재고를 장바구니에 넣고, 그 항목 id와 마지막으로 받은 장바구니를 돌려준다.
