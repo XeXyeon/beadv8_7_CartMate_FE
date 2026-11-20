@@ -43,7 +43,11 @@ export default function ProductDetail({ initialData }: { initialData?: DetailRes
     // 그 응답을 그대로 initialData로 쓰면 지금 상품 id 캐시에 이전 상품이 들어가 새로고침 전까지 이전 상품이 보인다.
     // 그래서 URL의 id와 같은 판매글일 때만 초기 데이터로 쓰고, 아니면 브라우저에서 새로 불러온다.
     const matchingInitialData = initialData?.data?.id === postId ? initialData : undefined;
-    const query = useSelectSalesPostDetail(postId, { query: { enabled: validId, initialData: matchingInitialData } });
+    // 남은 수량은 다른 구매자의 결제로 계속 바뀌므로, 상세에 들어올 때마다 다시 받는다(기본 60초 캐시를 쓰지 않음).
+    // 서버가 넘긴 초기 데이터는 로그인 없이 받은 값이라 찜 여부도 이때 내 기준으로 바로잡힌다
+    const query = useSelectSalesPostDetail(postId, {
+        query: { enabled: validId, initialData: matchingInitialData, staleTime: 0 },
+    });
     const post = query.data?.data;
 
     if (!validId || (query.error instanceof ApiError && query.error.status === 404)) {
