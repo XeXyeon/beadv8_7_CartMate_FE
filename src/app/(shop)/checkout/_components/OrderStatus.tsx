@@ -6,7 +6,6 @@ import { keepPreviousData, useIsFetching, useQueryClient } from '@tanstack/react
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Heading } from '@astryxdesign/core/Heading';
-import { getGetCartQueryKey } from '@/api/generated/cart-controller/cart-controller';
 import type { OrderDetailItemResponse, OrderDetailResponse } from '@/api/generated/model';
 import { getGetMyCouponsQueryKey } from '@/api/generated/coupon-controller/coupon-controller';
 import {
@@ -27,6 +26,7 @@ import {
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
+import { requestCartSync } from '@/lib/cartSync';
 import { formatDateTime } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
@@ -70,9 +70,10 @@ function OrderPayment({ orderId, order }: { orderId: number; order: OrderDetailR
     const pay = usePayOrder({
         mutation: {
             onSuccess: () => {
-                // 결제되면 BE가 주문한 상품을 장바구니에서 지우고 예치금을 차감한다. 헤더 배지와 주문 화면이 따라오도록 함께 갱신한다.
+                // 결제되면 BE가 예치금을 차감하고, 결제 이벤트를 받은 뒤에 주문한 상품을 장바구니에서 지운다.
+                // 장바구니는 지금 다시 받으면 지우기 전 값이 오므로 헤더가 바뀔 때까지 확인하게 하고, 나머지는 바로 갱신한다.
+                requestCartSync(queryClient, (order.items ?? []).flatMap((item) => item.inventoryId ?? []));
                 for (const queryKey of [
-                    getGetCartQueryKey(),
                     getGetMyWalletQueryKey(),
                     getGetMyWalletTransactionsQueryKey(),
                     getGetMyListQueryKey(),
