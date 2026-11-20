@@ -16,7 +16,9 @@ import {
     getGetMyList3QueryKey,
     useCancel2,
     useGetDetail3,
+    getSharedGroupOrderCouponOptionsQueryKey,
     usePaySharedGroupOrder,
+    useSharedGroupOrderCouponOptions,
 } from '@/api/generated/shared-group-order-controller/shared-group-order-controller';
 import {
     getGetMyWalletQueryKey,
@@ -29,6 +31,7 @@ import { buyerCancelLabel, partialCancelTitle, SHARED_ORDER_CANCEL_MESSAGE } fro
 import { formatDateTime, formatPhone, parseKst } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
+import { CouponSelectView } from '../../_components/CouponSelect';
 import Notice from '../../_components/Notice';
 
 // 공동 주문(?order=공동주문id)을 상태별로 보여 준다.
@@ -55,7 +58,13 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
     // 잔액은 다른 탭에서 바뀔 수 있어 화면에 들어올 때마다 새로 받는다.
     const wallet = useGetMyWallet({ query: { staleTime: 0 } });
     const balance = wallet.data?.data?.balance ?? 0;
-    const amount = order.myShareAmount ?? 0;
+    const share = order.myShareAmount ?? 0;
+    // 분담금에는 플랫폼 쿠폰 한 장을 쓸 수 있다(대상 금액은 내 분담금). 예상 할인액은 BE가 내 분담금으로 계산한 값이다.
+    const [couponId, setCouponId] = useState<number | null>(null);
+    const coupons = useSharedGroupOrderCouponOptions(orderId, { query: { staleTime: 0 } });
+    const selectedCoupon = (coupons.data?.data ?? []).find((o) => o.usable && o.memberCouponId === couponId);
+    const discount = Math.min(selectedCoupon?.expectedDiscount ?? 0, share);
+    const amount = share - discount;
     const sufficient = balance >= amount;
     const deadlinePassed = isPast(order.paymentDeadlineAt, order.serverTime);
 
@@ -88,6 +97,8 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
             onError: () => {
                 void queryClient.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
                 void queryClient.invalidateQueries({ queryKey: getGetDetail3QueryKey(orderId) });
+                // 쿠폰이 만료·사용됨 등으로 거절됐을 수 있어 목록도 다시 받는다.
+                void queryClient.invalidateQueries({ queryKey: getSharedGroupOrderCouponOptionsQueryKey(orderId) });
             },
         },
     });
@@ -97,10 +108,11 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
     const canPay = !deadlinePassed && sufficient && addressValid && agreed && !busy && !canceling && !wallet.isPending;
 
     const submit = () => {
-        pay.mutate({
-            id: orderId,
-            data: needsAddress ? { teamDeliveryAddress: trimAddress(current) } : undefined,
-        });
+        const data = {
+            ...(needsAddress ? { teamDeliveryAddress: trimAddress(current) } : {}),
+            ...(selectedCoupon ? { memberCouponId: couponId ?? undefined } : {}),
+        };
+        pay.mutate({ id: orderId, data: Object.keys(data).length ? data : undefined });
     };
 
     return (
@@ -141,6 +153,8 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
                 </section>
             )}
 
+            <CouponSelectView query={coupons} selected={couponId} onChange={setCouponId} disabled={busy || canceling} />
+
             <section className="border border-outline-variant p-space-md flex flex-col gap-space-sm" aria-label="예치금 결제">
                 <h3 className="font-label-md text-label-md text-primary font-bold">예치금 결제</h3>
                 {wallet.isPending ? (
@@ -149,6 +163,14 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
                     <>
                         <dl className="grid grid-cols-[1fr_auto] gap-y-space-xs font-body-sm text-body-sm">
                             <dt className="text-on-surface-variant">내 분담금</dt>
+                            <dd className="text-on-surface text-right">{formatPrice(share)}</dd>
+                            {discount > 0 && (
+                                <>
+                                    <dt className="text-on-surface-variant">쿠폰 할인</dt>
+                                    <dd className="text-primary text-right">-{formatPrice(discount)}</dd>
+                                </>
+                            )}
+                            <dt className="text-on-surface-variant">결제 금액</dt>
                             <dd className="text-on-surface font-semibold text-right">{formatPrice(amount)}</dd>
                             <dt className="text-on-surface-variant">보유 예치금</dt>
                             <dd className="text-on-surface text-right">{formatPrice(balance)}</dd>
