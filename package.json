@@ -10,7 +10,10 @@
     "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs",
     "api:gen": "orval",
     "api:pull": "node scripts/pull-openapi.mjs",
-    "seed:local": "bash scripts/seed-local.sh"
+    "seed:local": "bash scripts/seed-local.sh",
+    "e2e": "playwright test",
+    "e2e:demo": "E2E_DEMO=1 playwright test",
+    "e2e:bootstrap": "node scripts/e2e-bootstrap.mjs"
   },
   "dependencies": {
     "@astryxdesign/core": "0.7.14",
@@ -29,13 +32,16 @@
   },
   "devDependencies": {
     "@astryxdesign/cli": "0.7.14",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "bcryptjs": "^3.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "mysql2": "^3.24.6",
     "orval": "^8.40.0",
     "tailwindcss": "^4",
     "typescript": "^5"

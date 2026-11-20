@@ -43,3 +43,9 @@ next-env.d.ts
 
 # Playwright MCP 실행 산출물
 .playwright-mcp/
+
+# e2e (Playwright): 로그인 상태(쿠키) · 결과 · 리포트는 커밋하지 않는다
+/e2e/.auth/
+/test-results/
+/playwright-report/
+!.env.e2e.example
