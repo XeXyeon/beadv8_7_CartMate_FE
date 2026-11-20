@@ -72,7 +72,6 @@ function DetailContent({ post }: { post: PostWithReviews }) {
     // 고른 상품옵션: 옵션 종류(typeId) → 상품옵션(optionId). 상품을 바꾸면 비운다
     const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({});
     const [quantity, setQuantity] = useState(1);
-    const [imageIndex, setImageIndex] = useState(0);
 
     const products = (post.productList ?? []).map(toProductOption).filter((p) => p !== null);
     const onSale = post.status === 'ON_SALE';
@@ -80,6 +79,8 @@ function DetailContent({ post }: { post: PostWithReviews }) {
     const selectable = products.filter((p) => p.onSale);
     const currentId = selectable.find((p) => p.id === selectedId)?.id ?? selectable[0]?.id ?? null;
     const currentProduct = products.find((p) => p.id === currentId) ?? null;
+    // 큰 이미지는 처음에 보여 주는 상품(판매 중인 첫 상품)의 첫 사진에서 시작한다
+    const [imageIndex, setImageIndex] = useState(() => (currentId === null ? 0 : (firstImageIndexOf(products, currentId) ?? 0)));
     // 고른 상품 · 옵션 조합의 재고. 장바구니에는 이 inventoryId를 담는다
     const inventory = currentProduct ? findInventory(currentProduct, selectedOptions) : null;
     // 수량은 그 재고의 구매 가능 수량을 넘지 않게 (옵션을 바꿔 남은 수량이 줄어도 맞춘다)
@@ -89,6 +90,9 @@ function DetailContent({ post }: { post: PostWithReviews }) {
         setSelectedId(productId);
         setSelectedOptions({});
         setQuantity(1);
+        // 고른 상품의 사진을 크게 보여 준다. 사진이 없는 상품이면 지금 사진을 그대로 둔다
+        const index = firstImageIndexOf(products, productId);
+        if (index !== null) setImageIndex(index);
     }
 
     function selectOption(typeId: number, optionId: number | null) {
@@ -208,6 +212,16 @@ function DetailContent({ post }: { post: PostWithReviews }) {
             {post.id != null && <ProductComments postId={post.id} sellerId={post.sellerId} />}
         </div>
     );
+}
+
+// 한 줄로 모은 사진 목록(모든 상품의 사진)에서 그 상품의 첫 사진 위치. 사진이 없는 상품이면 null
+function firstImageIndexOf(products: ProductOption[], productId: number): number | null {
+    let offset = 0;
+    for (const product of products) {
+        if (product.id === productId) return product.imageUrls.length > 0 ? offset : null;
+        offset += product.imageUrls.length;
+    }
+    return null;
 }
 
 // 별점 요약: ★ 4.3 · 리뷰 12개. 누르면 아래 리뷰 목록(#reviews)으로 간다.
