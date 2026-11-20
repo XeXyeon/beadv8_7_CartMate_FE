@@ -18,8 +18,8 @@ node e2e/infra/smoke-api.mjs   # 로그인 → 판매글 → 결제 → 배송 �
 
 - 이미지 버전은 BE `k8s/infra/*.yaml` 과 같다(MySQL 8.4.13, Kafka 4.3.2 KRaft, Redis 7.4.11, ES 9.5.5 + nori). BE 이미지는 BE 저장소 `origin/dev` 를 `git archive` 로 읽어 `e2e/infra/.be-src` 에 풀어 빌드한다(BE 저장소는 수정하지 않는다). `E2E_BE_DIR` · `E2E_BE_REF` 로 바꾼다.
 - 설정은 저장소 루트 `.env.e2e`(gitignore)에서 읽는다. 토스 테스트 키 자리: `TOSS_SECRET_KEY`(BE), `NEXT_PUBLIC_TOSS_CLIENT_KEY`(FE). 예시는 `e2e/infra/.env.example`.
-- 운영과 다른 점: ① product-service 만 `dev` 프로필(운영 `prod` 는 S3 에만 사진을 올려 로컬 등록이 안 됨) ② 배송 자동 완료 10초(운영 300초, `E2E_DELIVERY_COMPLETE_SECONDS`) ③ 출금 이체 `fake`(운영 `manual`) ④ 메일 발송 끔(코드는 member 로그) ⑤ JVM `-Xmx448m` 고정 ⑥ trace 끔.
-- 관리자 OTP 암호화 키는 BE 기본값과 같은 값을 compose 에 명시했다.
+- 운영과 다른 점: ① product-service 만 `dev` 프로필(운영 `prod` 는 S3 에만 사진을 올려 로컬 등록이 안 됨) ② 배송 자동 완료 10초(운영 300초, `E2E_DELIVERY_COMPLETE_SECONDS`) ③ 출금 이체 `fake`(운영 `manual`) ④ 메일 발송 끔(코드는 member 로그) ⑤ JVM `-Xmx448m` 고정 ⑥ trace 끔 ⑦ 토스 승인 · 조회는 compose 안의 가짜 토스(`toss-stub`, `e2e/infra/toss-stub/server.mjs`)가 받는다(`CUSTOM_WALLET_TOSS_BASEURL`, 운영은 `https://api.tosspayments.com`). 카드사 인증을 자동화할 수 없어서이고, 토스 서버와의 실제 승인 통신은 이 E2E가 보지 않는다. 결제창이 열리는 것까지만 실제 토스 테스트 키로 본다.
+- 관리자 OTP 암호화 키는 BE 기본값과 같은 값을 compose 에 명시했다. 관리자 OTP 비밀키는 `e2e/support/config.mjs` 의 고정 로컬 값(`DEFAULT_ADMIN_OTP_SECRET`)이라 어느 워크트리에서 bootstrap 을 돌려도 같다(다른 값은 `E2E_ADMIN_OTP_SECRET`).
 
 ## 인증 코드 · 정산 (E2E 가 직접 처리)
 - 메일 인증 코드: member-service 가 `MAIL_ENABLED=false`(prod 프로필의 `true` 를 환경 변수로 다시 끔)라 SMTP 로 안 나가고 로그 `[인증 메일 — 발송 안 함]` 에 찍힌다. 휴대폰 코드는 `[휴대폰 인증] … → 인증번호`. 코드는 Redis 에 HMAC 해시로만 있어 로그에서 읽는다.

@@ -1,7 +1,7 @@
 // E2E 공용 설정: .env.e2e 읽기, 로컬 전용 가드, 고정 테스트 계정표, DB 접속 정보.
 // 대상은 로컬 도커의 운영 동등 환경(e2e/infra)이다. 로컬이 아닌 주소 · DB는 모두 거절한다.
 // bootstrap(.mjs)과 Playwright(.ts)가 함께 쓰므로 JS로 둔다.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 // npm 스크립트는 저장소 루트에서 실행된다. (Playwright가 이 파일을 CJS로 바꿔 읽으므로 import.meta를 쓰지 않는다)
@@ -100,13 +100,17 @@ export function resolveOtpKey() {
     return process.env.E2E_OTP_ENCRYPTION_KEY || 'Y2FydG1hdGUtbG9jYWwtb3RwLWtleS0zMmJ5dGVzISE=';
 }
 
-export const ADMIN_OTP_SECRET_FILE = path.join(AUTH_DIR, 'admin-otp-secret.txt');
+/**
+ * 관리자 OTP 비밀키(Base32, 20바이트). 로컬 E2E 전용 고정값이라 어느 워크트리에서 bootstrap · 테스트를 돌려도 같은 키가 된다
+ * (실행마다 새로 만들면 다른 워크트리의 키 파일이 낡아 OTP 인증이 깨진다). 로컬 DB에만 심으며 운영 키가 아니다.
+ * 다른 값을 쓰려면 환경 변수 E2E_ADMIN_OTP_SECRET(Base32)로 덮어쓴다.
+ */
+export const DEFAULT_ADMIN_OTP_SECRET = 'MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U';
 
-/** 관리자 OTP 비밀키(Base32). bootstrap이 만들어 e2e/.auth에 저장한다. */
 export function adminOtpSecret() {
-    // bootstrap이 만든 파일이 우선이다(예전 .env.e2e에 남은 다른 환경의 값에 끌려가지 않게).
-    if (existsSync(ADMIN_OTP_SECRET_FILE)) return readFileSync(ADMIN_OTP_SECRET_FILE, 'utf8').trim();
-    return process.env.E2E_ADMIN_OTP_SECRET?.trim() ?? '';
+    const secret = (process.env.E2E_ADMIN_OTP_SECRET?.trim() || DEFAULT_ADMIN_OTP_SECRET).toUpperCase();
+    if (!/^[A-Z2-7]{32}$/.test(secret)) throw new Error('E2E_ADMIN_OTP_SECRET은 Base32 32자(20바이트)여야 합니다.');
+    return secret;
 }
 
 /** 로컬 BE 컨테이너 이름(docker logs용). */

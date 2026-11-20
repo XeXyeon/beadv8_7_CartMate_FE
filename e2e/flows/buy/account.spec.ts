@@ -56,9 +56,34 @@ test.describe('E02 예치금 충전', () => {
         await expect(toss.getByText('50,000원').first()).toBeVisible();
     });
 
-    // 재기획 필요: 카드 선택 뒤 카드사 본인인증 화면(신한 · 하나 · 롯데 · 현대 · 카카오페이 등 실제 카드사 페이지)으로 넘어가며,
-    // 토스페이 앱 인증 · 문자 · 카드번호 입력이 필요해 자동화할 수 없다. 이 흐름은 멈추고 보고한다(작업 카드 QA-3).
-    test.fixme('E02 토스 결제 완료 → 잔액 · 거래내역 CHARGE', async () => {});
+    // 카드사 본인인증 화면은 자동화할 수 없어, 결제창이 열리는 것까지만 실제 토스를 보고
+    // 그 뒤(승인)는 토스 성공 주소로 바로 이동하고 BE가 부르는 토스를 compose의 가짜 토스(e2e/infra/toss-stub)로 돌린다.
+    test('E02 토스 결제 완료 → 잔액 · 거래내역 CHARGE', async ({ page, request }) => {
+        const before = await walletBalance(request);
+        await page.goto('/mypage/deposit/charge');
+        await page.getByRole('button', { name: '50,000원' }).click();
+        const ordered = page.waitForResponse((r) => r.url().endsWith('/api/wallets/me/charges') && r.request().method() === 'POST');
+        await page.getByRole('button', { name: '결제하기' }).click();
+        const orderNumber = (await (await ordered).json()).data.orderNumber as string;
+        expect(orderNumber).toBeTruthy();
+        await expect.poll(() => page.frames().some((f) => f.url().includes('tosspayments.com')), { timeout: 20_000 }).toBe(true);
+
+        // 카드사 인증을 마친 것처럼 토스가 돌려보내는 주소로 이동한다(가짜 paymentKey)
+        const paymentKey = `e2e_${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        await page.goto(`/mypage/deposit/charge/success?paymentKey=${paymentKey}&orderId=${orderNumber}&amount=50000`);
+        await expect(page.getByRole('heading', { name: '충전이 완료되었습니다' })).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByText(`${won(50_000)}을 충전했습니다.`).first()).toBeVisible();
+        expect(await walletBalance(request)).toBe(before + 50_000);
+
+        // 새로고침해도 같은 결제는 중복 충전되지 않는다
+        await page.reload();
+        await expect(page.getByRole('heading', { name: '충전이 완료되었습니다' })).toBeVisible({ timeout: 30_000 });
+        expect(await walletBalance(request)).toBe(before + 50_000);
+
+        // 거래내역에 충전(CHARGE)이 보인다
+        await page.goto('/mypage/deposit/history');
+        await expect(page.getByRole('row').filter({ hasText: '예치금 충전' }).filter({ hasText: '+50,000원' }).first()).toBeVisible();
+    });
 });
 
 test.describe('E15 세션 만료 · 로그아웃', () => {

@@ -94,9 +94,15 @@ test('E28 휴대폰 번호 변경: 틀린 인증번호는 거절하고, 맞는 �
     await page.goto('/mypage/profile');
     await expect(page.locator('#profile-phone')).toHaveValue(PHONE);
 
-    await page.locator('#profile-phone').fill(NEW_PHONE);
+    await page.waitForLoadState('networkidle');
+    // 프로필을 다시 불러오면 입력칸이 원래 번호로 되돌아가 "인증" 버튼이 꺼진다(QA-5 실행에서 한 번 실패). 번호가 남고 버튼이 켜질 때까지 다시 채운다
+    const sendButton = page.getByRole('button', { name: '인증', exact: true });
+    await expect(async () => {
+        await page.locator('#profile-phone').fill(NEW_PHONE);
+        await expect(sendButton).toBeEnabled({ timeout: 1_500 });
+    }).toPass({ timeout: 20_000 });
     const since = Date.now();
-    await page.getByRole('button', { name: '인증', exact: true }).click();
+    await sendButton.click();
     const code = await waitForPhoneCode(NEW_PHONE, since);
 
     // 틀린 번호

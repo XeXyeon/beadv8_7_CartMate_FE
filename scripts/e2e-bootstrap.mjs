@@ -8,12 +8,12 @@
 //               member_otp(e2e-admin, 로컬 암호화 키로 암호화한 OTP 비밀키)
 //   payment DB: wallet(5, 잔액 0)
 // 이 5개 이메일 밖의 행은 읽지도 쓰지도 않는다. 신뢰 기기 쿠키는 e2e/.auth/<계정>.json, 관리자 OTP 비밀키는
-// e2e/.auth/admin-otp-secret.txt 에 저장한다(커밋 금지). 비밀번호 · 쿠키 · 비밀키는 출력하지 않는다.
-import { createCipheriv, createHash, randomBytes } from 'node:crypto';
+// 고정 로컬 값(e2e/support/config.mjs DEFAULT_ADMIN_OTP_SECRET)이라 파일로 저장하지 않는다. 비밀번호 · 쿠키 · 비밀키는 출력하지 않는다.
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
-import { ACCOUNTS, ACCOUNT_KEYS, ADMIN_OTP_SECRET_FILE, AUTH_DIR, authFile, loadE2eEnv, resolveBaseUrl, resolveDb, resolveOtpKey, resolvePassword } from '../e2e/support/config.mjs';
+import { ACCOUNTS, ACCOUNT_KEYS, AUTH_DIR, adminOtpSecret, authFile, loadE2eEnv, resolveBaseUrl, resolveDb, resolveOtpKey, resolvePassword } from '../e2e/support/config.mjs';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const dryRun = process.argv.includes('--dry-run');
@@ -124,9 +124,9 @@ try {
             if (!seller) item.actions.push('seller');
         }
         if (a.role === 'ADMIN') {
-            const [[otp]] = row ? await member.query('SELECT enabled_at FROM member_otp WHERE member_id = ?', [row.id]) : [[null]];
-            // 비밀키 파일이 없으면 값을 알 수 없으므로 이 계정의 OTP 행만 새로 심는다.
-            if (!otp?.enabled_at || !existsSync(ADMIN_OTP_SECRET_FILE)) item.actions.push('otp');
+            const [[otp]] = row ? await member.query('SELECT enabled_at, secret_encrypted FROM member_otp WHERE member_id = ?', [row.id]) : [[null]];
+            // 고정 비밀키(config.adminOtpSecret)와 DB에 심긴 값이 같으면 건드리지 않는다(멱등). 다르거나 없으면 이 계정의 OTP 행만 같은 값으로 다시 심는다.
+            if (!otp?.enabled_at || !sameOtpSecret(otp.secret_encrypted)) item.actions.push('otp');
         }
         if (a.trusted) {
             const token = readTrustedDeviceToken(key);
@@ -167,7 +167,6 @@ try {
     const passwordHash = await bcrypt.hash(password, 10);
     mkdirSync(AUTH_DIR, { recursive: true });
     const written = [];
-    let pendingOtpSecret = null; // DB에 커밋된 뒤에 파일로 쓴다(둘이 어긋나지 않게)
     process.on('exit', (code) => {
         if (code !== 0 && written.length) console.error(`\n실패 전까지 쓴 행:\n  ${written.join('\n  ')}\n(다시 실행하면 빠진 행만 채웁니다)`);
     });
@@ -206,15 +205,14 @@ try {
             }
             if (p.actions.includes('otp')) {
                 // 이 계정의 OTP 행만 지우고 새로 심는다. 이미 쓰인 구간(last_used_step)은 0으로 시작한다.
-                const secret = randomBytes(20);
+                const secret = base32Decode(adminOtpSecret());
                 await member.query('DELETE FROM member_otp WHERE member_id = ?', [memberId]);
                 await member.query(
                     `INSERT INTO member_otp (created_at, updated_at, member_id, secret_encrypted, enabled_at, last_used_step)
                      VALUES (NOW(6), NOW(6), ?, ?, NOW(6), 0)`,
                     [memberId, sealOtpSecret(secret, resolveOtpKey())],
                 );
-                pendingOtpSecret = base32Encode(secret);
-                written.push(`${a.email}: member_otp + e2e/.auth/admin-otp-secret.txt`);
+                written.push(`${a.email}: member_otp`);
             }
             if (p.actions.includes('trusted_device')) {
                 // 이 스크립트가 만든 이 계정의 이전 신뢰 기기만 지우고 새로 발급한다.
@@ -230,10 +228,6 @@ try {
                 written.push(`${a.email}: trusted_device + e2e/.auth/${p.key}.json`);
             } else {
                 await member.commit();
-            }
-            if (pendingOtpSecret) {
-                saveOtpSecret(pendingOtpSecret);
-                pendingOtpSecret = null;
             }
         } catch (e) {
             await member.rollback().catch(() => {});
@@ -283,24 +277,31 @@ function sealOtpSecret(secret, base64Key) {
     return `v1:${Buffer.concat([iv, sealed]).toString('base64')}`;
 }
 
-function base32Encode(bytes) {
+function base32Decode(text) {
     let bits = 0;
     let value = 0;
-    let out = '';
-    for (const byte of bytes) {
-        value = (value << 8) | byte;
-        bits += 8;
-        while (bits >= 5) {
-            out += BASE32[(value >>> (bits - 5)) & 31];
-            bits -= 5;
+    const out = [];
+    for (const ch of text) {
+        value = (value << 5) | BASE32.indexOf(ch);
+        bits += 5;
+        if (bits >= 8) {
+            out.push((value >>> (bits - 8)) & 255);
+            bits -= 8;
         }
     }
-    if (bits > 0) out += BASE32[(value << (5 - bits)) & 31];
-    return out;
+    return Buffer.from(out);
 }
 
-function saveOtpSecret(base32) {
-    mkdirSync(AUTH_DIR, { recursive: true });
-    writeFileSync(ADMIN_OTP_SECRET_FILE, base32, { mode: 0o600 });
-    chmodSync(ADMIN_OTP_SECRET_FILE, 0o600);
+/** sealOtpSecret의 반대: DB에 심긴 값이 고정 비밀키와 같은지. 복호화가 안 되면(다른 암호화 키 등) 다르다고 본다. */
+function sameOtpSecret(sealed) {
+    try {
+        const raw = Buffer.from(String(sealed).replace(/^v1:/, ''), 'base64');
+        const key = Buffer.from(resolveOtpKey(), 'base64');
+        const decipher = createDecipheriv('aes-256-gcm', key, raw.subarray(0, 12));
+        decipher.setAuthTag(raw.subarray(raw.length - 16));
+        const plain = Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]);
+        return plain.equals(base32Decode(adminOtpSecret()));
+    } catch {
+        return false;
+    }
 }
