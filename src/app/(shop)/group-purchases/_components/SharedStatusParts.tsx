@@ -6,7 +6,7 @@ import type { SharedGroupPurchaseDetailResponse } from '@/api/generated/model';
 import Icon from '@/components/ui/Icon';
 import { formatDateTime } from '@/lib/format';
 import { formatPrice } from '@/lib/salesPost';
-import { myAmount, remainingText } from '../_lib/sharedGroupPurchase';
+import { isOrderCreated, myAmount, remainingText } from '../_lib/sharedGroupPurchase';
 
 type Detail = SharedGroupPurchaseDetailResponse;
 
@@ -38,9 +38,9 @@ export function StateBanner({ purchase, deadlinePassed }: { purchase: Detail; de
         message = purchase.viewerIsCreator
             ? '구매할 수 없는 상품이 있어 마감이 보류되었습니다. 해당 상품을 빼면 마감할 수 있습니다. 보류 후 24시간이 지나면 그 상품을 빼고 자동 마감됩니다.'
             : '구매할 수 없는 상품이 있어 마감이 보류되었습니다. 만든 사람이 정리하거나, 보류 후 24시간이 지나면 그 상품을 빼고 자동 마감됩니다.';
-    } else if (purchase.status === 'CLOSED') {
+    } else if (isOrderCreated(purchase.status)) {
         icon = 'check_circle';
-        message = `${formatDateTime(purchase.closedAt)}에 마감되어 공동 주문이 만들어졌습니다. 품목은 더 이상 바꿀 수 없습니다.`;
+        message = `${formatDateTime(purchase.closedAt)}에 마감되어 공동 주문이 만들어졌습니다. 품목은 더 이상 바꿀 수 없고, 각자 내 몫을 결제하면 됩니다.`;
     } else {
         icon = 'block';
         message = `${formatDateTime(purchase.closedAt)}에 취소된 공동구매입니다.`;

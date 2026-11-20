@@ -123,8 +123,8 @@ test.describe('N빵 공동 주문', () => {
         }
     });
 
-    // FE 화면 문제(이슈 QA-5#1): 마감 뒤 상세(ORDER_CREATED)에 "내 몫 결제하기" 링크가 없고 "취소된 공동구매"라고 안내한다. 고쳐지면 fixme를 푼다.
-    test.fixme('E10-상세 마감한 N빵 상세에서 "내 몫 결제하기"로 결제 화면에 갈 수 있다', async ({ browser, baseURL, playwright }) => {
+    // 마감 뒤 상세(ORDER_CREATED)에 "내 몫 결제하기" 링크와 주문 생성 안내가 보인다(이슈 QA-5#1)
+    test('E10-상세 마감한 N빵 상세에서 "내 몫 결제하기"로 결제 화면에 갈 수 있다', async ({ browser, baseURL, playwright }) => {
         let creator: Person | undefined;
         const seller = await playwright.request.newContext({ baseURL, storageState: authFile('seller') });
         try {
@@ -134,6 +134,7 @@ test.describe('N빵 공동 주문', () => {
             await addSharedItem(creator.page, id, post, 1);
             await closeSharedGroup(creator.page, id);
             await expect(creator.page.getByText('취소된 공동구매입니다')).toHaveCount(0);
+            await expect(creator.page.getByText('마감되어 공동 주문이 만들어졌습니다').first()).toBeVisible();
             await creator.page.getByRole('link', { name: '내 몫 결제하기' }).click();
             await expect(creator.page).toHaveURL(/\/checkout\/shared\?order=\d+/);
         } finally {

@@ -153,7 +153,7 @@ export async function addSharedItem(page: Page, id: number, post: CreatedPost, q
 
 /**
  * 만든 사람이 상세에서 마감한다. BE는 같은 요청 안에서 공동 주문까지 만들어 상태가 바로 ORDER_CREATED("주문 생성")가 된다.
- * (알려진 FE 문제: 이 상태의 상세에는 "내 몫 결제하기" 링크가 없다 — 이슈 참고. 그래서 결제는 내 공동 주문 목록(API)에서 주문 id를 찾아 결제 화면으로 간다.)
+ * 상세의 "내 몫 결제하기" 링크는 E10-상세가 따로 본다. 결제 흐름은 내 공동 주문 목록(API)에서 주문 id를 찾아 결제 화면으로 간다.
  */
 export async function closeSharedGroup(page: Page, id: number) {
     await page.goto(`/group-purchases/${id}`);

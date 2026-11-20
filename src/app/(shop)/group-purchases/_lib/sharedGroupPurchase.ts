@@ -12,6 +12,12 @@ const STATUS_LABEL: Record<Status, string> = {
     ORDER_CREATED: '주문 생성',
 };
 
+// 마감되어 공동 주문이 만들어진 상태. 지금 BE는 마감 요청 안에서 주문까지 만들어 CLOSED를 거치지 않고 ORDER_CREATED로 간다(QA-5#1).
+// 둘 다 품목을 바꿀 수 없고 참여자가 각자 내 몫을 결제하는 단계라 화면에서는 같게 다룬다.
+export function isOrderCreated(status: Status | undefined): boolean {
+    return status === 'CLOSED' || status === 'ORDER_CREATED';
+}
+
 const BADGE_BASE = 'inline-flex items-center px-2 py-0.5 rounded font-caption text-caption font-bold';
 
 // BE는 수정 마감이 지나도 스케줄러가 돌기 전까지 OPEN으로 두므로 editable로 한 번 더 나눈다.
@@ -89,6 +95,6 @@ export function managePermissions(purchase: Detail, deadlinePassed: boolean) {
         canIncreaseMax: editable && creator && (purchase.maxParticipants ?? MAX_PARTICIPANTS) < MAX_PARTICIPANTS,
         canClose: creator && (editable || purchase.status === 'FROZEN'),
         canCancel: creator && active,
-        canDuplicate: creator && (purchase.status === 'CLOSED' || purchase.status === 'CANCELED'),
+        canDuplicate: creator && (isOrderCreated(purchase.status) || purchase.status === 'CANCELED'),
     };
 }
