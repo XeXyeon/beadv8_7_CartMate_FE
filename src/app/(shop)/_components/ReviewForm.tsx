@@ -21,7 +21,7 @@ export function Stars({ rating }: { rating: number }) {
     );
 }
 
-// 내용 검사(별점 안 고름 · 10자 미만 · 1000자 초과)는 글씨로 보여 준다. 서버 거절은 부르는 쪽이 alert로
+// 내용 검사(별점 안 고름 · 10자 미만 · 1000자 초과)와 서버 거절 모두 입력 아래 글씨로 보여 준다
 function validate(rating: number, content: string): string | null {
     if (rating < 1 || rating > 5) return '별점을 골라 주세요.';
     const length = content.trim().length;
@@ -35,8 +35,8 @@ type Props = {
     initialContent?: string;
     submitLabel: string;
     disabled: boolean;
-    // 성공하면 true. 실패 이유는 부르는 쪽이 보여 준다
-    onSubmit: (rating: number, content: string) => Promise<boolean>;
+    // 성공하면 null, BE가 거절하면 그 이유(입력 아래 글씨로 보인다)
+    onSubmit: (rating: number, content: string) => Promise<string | null>;
     onCancel?: () => void;
 };
 
@@ -51,7 +51,7 @@ export default function ReviewForm({ initialRating = 0, initialContent = '', sub
         const found = validate(rating, content);
         setProblem(found);
         if (found) return;
-        await onSubmit(rating, content.trim());
+        setProblem(await onSubmit(rating, content.trim()));
     }
 
     return (
@@ -92,7 +92,11 @@ export default function ReviewForm({ initialRating = 0, initialContent = '', sub
                     <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} isLoading={disabled} />
                 </div>
             </div>
-            {problem && <Text className="text-error text-caption">{problem}</Text>}
+            {problem && (
+                <Text className="text-error text-caption" role="alert">
+                    {problem}
+                </Text>
+            )}
         </form>
     );
 }

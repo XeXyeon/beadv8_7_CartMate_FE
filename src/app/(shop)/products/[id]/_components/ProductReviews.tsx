@@ -65,7 +65,8 @@ export default function ProductReviews({ postId, sellerId, reviewCount }: Props)
             last.totalPages != null && lastPageParam + 1 < last.totalPages ? lastPageParam + 1 : undefined,
     });
 
-    // 수정 · 삭제 공통: 성공하면 리뷰 목록과 위쪽 별점 요약(판매글 상세)을 다시 받고, BE가 거절하면 이유를 alert로 보여 준다
+    // 수정 · 삭제 공통: 성공하면 리뷰 목록과 위쪽 별점 요약(판매글 상세)을 다시 받는다.
+    // BE가 거절한 이유는 돌려주고, 요청한 입력 · 리뷰 아래에 글씨로 보인다 (성공이면 null)
     const change = useMutation({
         mutationFn: ({ url, init }: { url: string; init: RequestInit }) => http<unknown>(url, init),
         onSuccess: () =>
@@ -73,16 +74,19 @@ export default function ProductReviews({ postId, sellerId, reviewCount }: Props)
                 queryClient.invalidateQueries({ queryKey }),
                 queryClient.invalidateQueries({ queryKey: getSelectSalesPostDetailQueryKey(postId) }),
             ]),
-        onError: (error) => window.alert(errorMessage(error, '리뷰를 처리하지 못했습니다.')),
     });
-    const run = (url: string, init: RequestInit) => change.mutateAsync({ url, init }).then(() => true, () => false);
+    const run = (url: string, init: RequestInit): Promise<string | null> =>
+        change.mutateAsync({ url, init }).then(
+            () => null,
+            (error: unknown) => errorMessage(error, '리뷰를 처리하지 못했습니다.'),
+        );
 
     const editReview = (reviewId: number, rating: number, content: string) =>
         run(reviewUrl(reviewId), jsonInit('PATCH', { rating, content }));
     const deleteReview = (reviewId: number) =>
         window.confirm('리뷰를 삭제할까요? 삭제한 리뷰는 되돌릴 수 없고, 이 상품에 다시 쓸 수 없습니다.')
             ? run(reviewUrl(reviewId), { method: 'DELETE' })
-            : Promise.resolve(false);
+            : Promise.resolve(null);
 
     // 판매자 답글: 리뷰마다 하나, 답글 번호 없이 리뷰 번호로 쓰고 · 고치고 · 지운다
     const writeReply = (reviewId: number, content: string) => run(replyUrl(reviewId), jsonInit('POST', { content }));
@@ -90,7 +94,7 @@ export default function ProductReviews({ postId, sellerId, reviewCount }: Props)
     const deleteReply = (reviewId: number) =>
         window.confirm('답글을 삭제할까요? 삭제한 답글은 되돌릴 수 없습니다.')
             ? run(replyUrl(reviewId), { method: 'DELETE' })
-            : Promise.resolve(false);
+            : Promise.resolve(null);
 
     const reviews = query.data?.pages.flatMap((page) => page.content ?? []) ?? [];
     const total = query.data?.pages[0]?.totalElements ?? reviewCount;
@@ -148,17 +152,20 @@ type ReviewItemProps = {
     review: Review;
     busy: boolean;
     isPostSeller: boolean;
-    onEdit: (rating: number, content: string) => Promise<boolean>;
-    onDelete: () => Promise<boolean>;
-    onWriteReply: (content: string) => Promise<boolean>;
-    onEditReply: (content: string) => Promise<boolean>;
-    onDeleteReply: () => Promise<boolean>;
+    onEdit: (rating: number, content: string) => Promise<string | null>;
+    onDelete: () => Promise<string | null>;
+    onWriteReply: (content: string) => Promise<string | null>;
+    onEditReply: (content: string) => Promise<string | null>;
+    onDeleteReply: () => Promise<string | null>;
 };
 
 function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply, onEditReply, onDeleteReply }: ReviewItemProps) {
     const [editing, setEditing] = useState(false);
     // 판매자 답글 입력: 'new' = 새 답글, 'edit' = 답글 수정, null = 닫힘
     const [replyMode, setReplyMode] = useState<'new' | 'edit' | null>(null);
+    // 리뷰 · 답글 삭제를 BE가 거절한 이유 (그 글 아래에 보인다)
+    const [deleteProblem, setDeleteProblem] = useState<string | null>(null);
+    const [replyDeleteProblem, setReplyDeleteProblem] = useState<string | null>(null);
 
     return (
         <li className="flex flex-col gap-space-sm p-5">
@@ -172,11 +179,11 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
                         {review.isEdited && ' · 수정됨'}
                     </Text>
                 </div>
-                {/* 수정은 구매확정 후 30일 안만 된다. 기한이 지났으면 BE가 거절하고 그 이유를 alert로 보여 준다 */}
+                {/* 수정은 구매확정 후 30일 안만 된다. 기한이 지났으면 BE가 거절하고 그 이유를 입력 아래 글씨로 보여 준다 */}
                 {review.isMine && !editing && (
                     <div className="flex gap-space-xs">
                         <Button label="수정" size="sm" variant="ghost" isDisabled={busy} onClick={() => setEditing(true)} />
-                        <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={() => void onDelete()} />
+                        <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={async () => setDeleteProblem(await onDelete())} />
                     </div>
                 )}
             </div>
@@ -194,14 +201,19 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
                     submitLabel="수정 완료"
                     disabled={busy}
                     onSubmit={async (rating, content) => {
-                        const ok = await onEdit(rating, content);
-                        if (ok) setEditing(false);
-                        return ok;
+                        const failure = await onEdit(rating, content);
+                        if (!failure) setEditing(false);
+                        return failure;
                     }}
                     onCancel={() => setEditing(false)}
                 />
             ) : (
                 <Text className="whitespace-pre-line">{review.content}</Text>
+            )}
+            {deleteProblem && (
+                <Text className="text-error text-caption" role="alert">
+                    {deleteProblem}
+                </Text>
             )}
 
             {review.sellerReply && (
@@ -218,7 +230,7 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
                         {isPostSeller && replyMode === null && (
                             <div className="flex gap-space-xs">
                                 <Button label="수정" size="sm" variant="ghost" isDisabled={busy} onClick={() => setReplyMode('edit')} />
-                                <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={() => void onDeleteReply()} />
+                                <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={async () => setReplyDeleteProblem(await onDeleteReply())} />
                             </div>
                         )}
                     </div>
@@ -228,14 +240,19 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
                             submitLabel="수정 완료"
                             disabled={busy}
                             onSubmit={async (content) => {
-                                const ok = await onEditReply(content);
-                                if (ok) setReplyMode(null);
-                                return ok;
+                                const failure = await onEditReply(content);
+                                if (!failure) setReplyMode(null);
+                                return failure;
                             }}
                             onCancel={() => setReplyMode(null)}
                         />
                     ) : (
                         <Text type="supporting" className="whitespace-pre-line">{review.sellerReply.content}</Text>
+                    )}
+                    {replyDeleteProblem && (
+                        <Text className="text-error text-caption" role="alert">
+                            {replyDeleteProblem}
+                        </Text>
                     )}
                 </div>
             )}
@@ -248,9 +265,9 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
                             submitLabel="답글 등록"
                             disabled={busy}
                             onSubmit={async (content) => {
-                                const ok = await onWriteReply(content);
-                                if (ok) setReplyMode(null);
-                                return ok;
+                                const failure = await onWriteReply(content);
+                                if (!failure) setReplyMode(null);
+                                return failure;
                             }}
                             onCancel={() => setReplyMode(null)}
                         />
@@ -272,7 +289,7 @@ function ReviewItem({ review, busy, isPostSeller, onEdit, onDelete, onWriteReply
     );
 }
 
-// 판매자 답글 입력 (1 ~ 1000자). 빈 글 · 초과는 글씨로, 서버 거절은 부르는 쪽이 alert로 보여 준다
+// 판매자 답글 입력 (1 ~ 1000자). 빈 글 · 초과와 서버 거절 모두 입력 아래 글씨로 보여 준다
 function ReplyForm({
     initial = '',
     submitLabel,
@@ -283,7 +300,7 @@ function ReplyForm({
     initial?: string;
     submitLabel: string;
     disabled: boolean;
-    onSubmit: (content: string) => Promise<boolean>;
+    onSubmit: (content: string) => Promise<string | null>;
     onCancel: () => void;
 }) {
     const [content, setContent] = useState(initial);
@@ -296,7 +313,7 @@ function ReplyForm({
             trimmed.length === 0 ? '답글 내용을 입력해 주세요.' : trimmed.length > REPLY_MAX_LENGTH ? `${REPLY_MAX_LENGTH}자까지 쓸 수 있습니다.` : null;
         setProblem(found);
         if (found) return;
-        await onSubmit(trimmed);
+        setProblem(await onSubmit(trimmed));
     }
 
     return (
@@ -317,7 +334,11 @@ function ReplyForm({
                     <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} isLoading={disabled} />
                 </div>
             </div>
-            {problem && <Text className="text-error text-caption">{problem}</Text>}
+            {problem && (
+                <Text className="text-error text-caption" role="alert">
+                    {problem}
+                </Text>
+            )}
         </form>
     );
 }
