@@ -13,9 +13,10 @@ import { getGetDownloadableCouponsQueryKey } from '@/api/generated/coupon-contro
 import type { AdminCouponResponse, CouponCreateRequest } from '@/api/generated/model';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
-import { conditionLabel, discountLabel } from '@/lib/coupon';
-import { formatDateTime } from '@/lib/format';
+import { conditionLabel, discountLabel, usablePeriodLabel } from '@/lib/coupon';
+import { formatDateTime, toKstLocal } from '@/lib/format';
 import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
+import SellerPicker, { type PickedSeller } from './SellerPicker';
 
 const PAGE_SIZE = 20;
 
@@ -26,7 +27,7 @@ type Form = {
     maxDiscountAmount: string;
     minOrderAmount: string;
     scope: 'ALL' | 'SELLER';
-    sellerId: string;
+    seller: PickedSeller | null;
     issueType: 'DOWNLOAD' | 'AUTO';
     issueStartAt: string;
     issueEndAt: string;
@@ -43,7 +44,7 @@ const EMPTY: Form = {
     maxDiscountAmount: '',
     minOrderAmount: '0',
     scope: 'ALL',
-    sellerId: '',
+    seller: null,
     issueType: 'DOWNLOAD',
     issueStartAt: '',
     issueEndAt: '',
@@ -62,10 +63,23 @@ function validate(f: Form): string | null {
     const value = num(f.discountValue);
     if (!value || value <= 0) return '할인 값은 0보다 커야 합니다.';
     if (f.discountType === 'RATE' && value > 100) return '정률 할인은 100%를 넘을 수 없습니다.';
-    if (f.scope === 'SELLER' && !num(f.sellerId)) return '판매자 쿠폰은 판매자 회원 ID를 입력해주세요.';
+    // BE는 sellerId가 실제 판매자인지 확인하지 않아, 판매글 목록에서 고른 판매자(판매자 번호)만 받는다
+    if (f.scope === 'SELLER' && !f.seller) return '판매자 쿠폰은 판매자를 검색해서 골라 주세요.';
     if (f.periodType === 'UNTIL' && !f.usableUntil) return '사용 마감 일시를 입력해주세요.';
     if (f.periodType === 'DAYS' && !(num(f.validDays) && num(f.validDays)! > 0)) return '발급 후 사용 일수는 1일 이상이어야 합니다.';
     if (f.issueStartAt && f.issueEndAt && f.issueEndAt < f.issueStartAt) return '발급 종료가 시작보다 빠릅니다.';
+    // BE가 확인하지 않는 날짜 관계(BE:ISS-45). 받자마자 만료된 쿠폰이 나가지 않게 막는다. 모두 한국 시간 문자열끼리 비교한다
+    const now = toKstLocal(new Date());
+    if (f.issueEndAt && f.issueEndAt <= now) return '발급 종료가 이미 지났습니다.';
+    if (f.periodType === 'UNTIL') {
+        if (f.usableUntil <= now) return '사용 마감이 이미 지났습니다.';
+        if (f.issueStartAt && f.usableUntil <= f.issueStartAt) return '사용 마감은 발급 시작 뒤여야 합니다.';
+        // BE는 발급할 때 사용 마감을 보지 않아, 발급 종료가 없으면 사용 마감이 지난 뒤에도 쿠폰이 나간다
+        if (!f.issueEndAt) return '사용 마감을 정했으면 발급 종료도 정해 주세요. 비워 두면 사용 마감이 지난 뒤에도 발급됩니다.';
+        if (f.usableUntil <= f.issueEndAt) {
+            return '사용 마감은 발급 종료 뒤여야 합니다. 마지막에 받은 회원도 쓸 수 있게 정해 주세요.';
+        }
+    }
     return null;
 }
 
@@ -77,7 +91,7 @@ function toRequest(f: Form): CouponCreateRequest {
         maxDiscountAmount: f.discountType === 'RATE' ? num(f.maxDiscountAmount) : undefined,
         minOrderAmount: num(f.minOrderAmount) ?? 0,
         scope: f.scope,
-        sellerId: f.scope === 'SELLER' ? num(f.sellerId) : undefined,
+        sellerId: f.scope === 'SELLER' ? f.seller?.id : undefined,
         issueType: f.issueType,
         autoTrigger: f.issueType === 'AUTO' ? 'SIGNUP' : undefined,
         issueStartAt: dateTime(f.issueStartAt),
@@ -86,6 +100,26 @@ function toRequest(f: Form): CouponCreateRequest {
         validDays: f.periodType === 'DAYS' ? num(f.validDays) : undefined,
         totalQuantity: num(f.totalQuantity),
     };
+}
+
+// 만든 뒤 고칠 수 없어 제출 전에 할인 · 부담 · 기간 · 수량을 한 번 더 보여 준다
+function confirmMessage(r: CouponCreateRequest, seller: PickedSeller | null): string {
+    const lines = [
+        `"${r.name}" 쿠폰을 만들까요?`,
+        '',
+        `할인: ${discountLabel(r)}${r.discountType === 'RATE' && r.maxDiscountAmount ? ` (최대 ${r.maxDiscountAmount.toLocaleString('ko-KR')}원)` : ''}${r.minOrderAmount ? ` · ${r.minOrderAmount.toLocaleString('ko-KR')}원 이상 구매 시` : ''}`,
+        r.scope === 'SELLER'
+            ? `범위: 판매자 ${seller?.name ? `${seller.name} ` : ''}(#${r.sellerId}) 상품 · 판매자 부담`
+            : '범위: 전체 상품 · 플랫폼 부담',
+        `발급: ${r.issueType === 'AUTO' ? '회원 가입 시 자동' : '직접 받기'}${r.issueEndAt ? ` · ${formatDateTime(r.issueEndAt)}까지` : ''}`,
+        `사용: ${usablePeriodLabel(r)}`,
+        `수량: ${r.totalQuantity ? `${r.totalQuantity.toLocaleString('ko-KR')}장` : '제한 없음'}`,
+    ];
+    if (r.discountType === 'RATE' && r.discountValue === 100 && !r.maxDiscountAmount) {
+        lines.push('', '주의: 100% 할인에 최대 할인 금액이 없어 결제 금액이 0원이 됩니다. 0원 결제는 처리되지 않아 이 쿠폰으로는 결제할 수 없습니다.');
+    }
+    lines.push('', '만든 뒤에는 고칠 수 없고 발급 중지만 할 수 있습니다.');
+    return lines.join('\n');
 }
 
 // 관리자 쿠폰 관리: 목록(발급·사용 수), 만들기, 발급 중지. 쿠폰은 수정·삭제하지 않는다(이미 받은 회원이 있어서)
@@ -138,7 +172,8 @@ export default function AdminCouponManager() {
         const problem = validate(form);
         if (problem) return setError(problem);
         setError(null);
-        create.mutate({ data: toRequest(form) });
+        const data = toRequest(form);
+        if (confirm(confirmMessage(data, form.seller))) create.mutate({ data });
     };
 
     const onStop = (c: AdminCouponResponse) => {
@@ -201,12 +236,14 @@ export default function AdminCouponManager() {
                                     onChange={(v) => set('scope', v)}
                                 />
                             </Field>
-                            {form.scope === 'SELLER' && (
-                                <Field label="판매자 회원 ID">
-                                    <input className={INPUT} type="number" onWheel={blurOnWheel} min={1} value={form.sellerId} onChange={(e) => set('sellerId', e.target.value)} />
-                                </Field>
-                            )}
                         </div>
+                        {form.scope === 'SELLER' && (
+                            // 검색 칸 · 버튼이 들어 있어 label(Field)로 감싸지 않는다
+                            <div className="flex flex-col gap-space-xs">
+                                <span className="font-label-md text-label-md">판매자</span>
+                                <SellerPicker value={form.seller} onChange={(seller) => set('seller', seller)} />
+                            </div>
+                        )}
 
                         <div className="grid gap-space-md sm:grid-cols-3">
                             <Field label="발급 방식">
@@ -286,7 +323,7 @@ export default function AdminCouponManager() {
                                     <td className="py-space-sm px-space-md">
                                         <div className="font-label-md text-label-md text-on-surface">{c.name}</div>
                                         <div className="text-primary font-semibold">{discountLabel(c)}</div>
-                                        <div className="text-outline">{conditionLabel(c)}</div>
+                                        <div className="text-outline">{conditionLabel(c, 'admin')}</div>
                                     </td>
                                     <td className="py-space-sm px-space-md text-center">
                                         <Badge label={c.issueType === 'AUTO' ? '가입 자동' : '직접 받기'} variant={c.issueType === 'AUTO' ? 'purple' : 'blue'} />
@@ -303,7 +340,7 @@ export default function AdminCouponManager() {
                                         <div className="text-outline">사용 {(c.usedCount ?? 0).toLocaleString('ko-KR')}</div>
                                     </td>
                                     <td className="py-space-sm px-space-md text-center">
-                                        <Badge label={c.status === 'ACTIVE' ? '발급 중' : '발급 중지'} variant={c.status === 'ACTIVE' ? 'success' : 'neutral'} />
+                                        <StatusBadge coupon={c} />
                                     </td>
                                     <td className="py-space-sm px-space-md text-center">
                                         {c.status === 'ACTIVE' && (
@@ -326,6 +363,13 @@ export default function AdminCouponManager() {
             )}
         </div>
     );
+}
+
+// 총 수량을 다 발급했으면 발급 중이어도 더 받을 수 없어 "소진"으로 보인다
+function StatusBadge({ coupon: c }: { coupon: AdminCouponResponse }) {
+    if (c.status !== 'ACTIVE') return <Badge label="발급 중지" variant="neutral" />;
+    const soldOut = c.totalQuantity != null && (c.issuedCount ?? 0) >= c.totalQuantity;
+    return soldOut ? <Badge label="소진" variant="neutral" /> : <Badge label="발급 중" variant="success" />;
 }
 
 const INPUT = 'h-10 w-full px-space-sm border border-outline-variant rounded bg-surface-container-lowest font-body-sm text-body-sm outline-none focus:border-primary';
