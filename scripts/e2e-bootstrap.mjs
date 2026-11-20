@@ -20,7 +20,7 @@ const dryRun = process.argv.includes('--dry-run');
 const DEVICE_NAME = 'e2e-bootstrap';
 const DEVICE_TTL_DAYS = 29; // BE 신뢰 기기 기본 30일보다 짧게. BE는 로그인 때 토큰만 회전시키고 만료는 늘리지 않는다.
 const DEVICE_RENEW_BEFORE_DAYS = 7; // 만료까지 이보다 적게 남았으면 다시 발급한다.
-const SELLER_BANK = 'KB';
+const SELLER_BANK = '국민은행'; // BE BankCode의 은행 이름(QA-3#3)
 const SELLER_ACCOUNT_NUMBER = '9990000000001'; // 가짜 계좌. (bank_name, account_number)가 유니크라 고정값을 쓴다.
 
 // 필요한 테이블 · 컬럼이 있는지 먼저 확인한다(스키마가 예상과 다르면 아무것도 쓰지 않고 멈춘다).
