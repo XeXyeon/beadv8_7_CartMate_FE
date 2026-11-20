@@ -123,12 +123,14 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
                         <dd className="text-on-surface text-right">{order.paidAt ? '팀바이 예치금' : '-'}</dd>
                         <dt className="text-outline">결제 일시</dt>
                         <dd className="text-on-surface text-right">{order.paidAt ? formatDateTime(order.paidAt) : '-'}</dd>
-                        <dt className="pt-space-xs mt-space-xs border-t border-surface-container font-headline-sm text-headline-sm text-primary font-bold">
-                            {order.paidAt ? '결제 금액' : '주문 금액'}
-                        </dt>
-                        <dd className="pt-space-xs mt-space-xs border-t border-surface-container font-headline-sm text-headline-sm text-primary font-bold text-right">
-                            {formatPrice(order.totalAmount ?? 0)}
-                        </dd>
+                        {order.paidAt ? (
+                            <PaidAmountRows orderId={orderId} orderAmount={order.totalAmount ?? 0} />
+                        ) : (
+                            <>
+                                <dt className={TOTAL_ROW}>주문 금액</dt>
+                                <dd className={`${TOTAL_ROW} text-right`}>{formatPrice(order.totalAmount ?? 0)}</dd>
+                            </>
+                        )}
                         {order.paidAt && (canceledItems.length > 0 || order.status === 'CANCELED') && <RefundRow orderId={orderId} />}
                     </dl>
                 </section>
@@ -141,6 +143,29 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
                 )}
             </div>
         </div>
+    );
+}
+
+const TOTAL_ROW = 'pt-space-xs mt-space-xs border-t border-surface-container font-headline-sm text-headline-sm text-primary font-bold';
+
+// 주문 상세의 totalAmount는 쿠폰 할인 전 금액이라(BE:ISS-42) 실제 결제 금액은 결제 내역(amount)에서 읽는다.
+// 둘의 차이를 쿠폰 할인으로 보여 준다. 결제 내역을 못 읽으면 할인 전 금액을 결제 금액으로 보이지 않는다(ISS-28)
+function PaidAmountRows({ orderId, orderAmount }: { orderId: number; orderAmount: number }) {
+    const payment = useGetByOrder(orderId);
+    const paid = payment.data?.data?.amount;
+    const discount = paid != null ? orderAmount - paid : 0;
+    const text = payment.isPending ? '확인 중' : paid == null ? '예치금 내역에서 확인' : formatPrice(paid);
+    return (
+        <>
+            {discount > 0 && (
+                <>
+                    <dt className="text-outline">쿠폰 할인</dt>
+                    <dd className="text-primary font-semibold text-right">-{formatPrice(discount)}</dd>
+                </>
+            )}
+            <dt className={TOTAL_ROW}>결제 금액</dt>
+            <dd className={`${TOTAL_ROW} text-right`} data-paid-amount={paid ?? ''}>{text}</dd>
+        </>
     );
 }
 
