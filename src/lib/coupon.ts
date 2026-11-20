@@ -18,17 +18,23 @@ export function discountLabel(c: CouponLike): string {
     return c.discountType === 'RATE' ? `${value}% 할인` : `${formatPrice(value)} 할인`;
 }
 
-// 사용 조건 한 줄: "30,000원 이상 · 최대 5,000원 · 판매자 #3 상품"
-export function conditionLabel(c: CouponLike): string {
+// 구매자 화면은 판매자 번호를 알아볼 수 없어 "판매자 전용"으로 보이고, 관리자 화면만 번호를 보인다.
+// 상품 상세는 그 판매자의 쿠폰만 나오므로 "이 판매자 상품 전용"으로 보인다.
+export type CouponScopeView = 'buyer' | 'sellerPage' | 'admin';
+
+// 사용 조건 한 줄: "30,000원 이상 구매 시 · 최대 5,000원 · 판매자 전용"
+export function conditionLabel(c: CouponLike, view: CouponScopeView = 'buyer'): string {
     const parts: string[] = [];
     parts.push((c.minOrderAmount ?? 0) > 0 ? `${formatPrice(c.minOrderAmount ?? 0)} 이상 구매 시` : '금액 조건 없음');
     if (c.discountType === 'RATE' && c.maxDiscountAmount) parts.push(`최대 ${formatPrice(c.maxDiscountAmount)}`);
-    parts.push(scopeLabel(c));
+    parts.push(scopeLabel(c, view));
     return parts.join(' · ');
 }
 
-export function scopeLabel(c: CouponLike): string {
-    return c.scope === 'SELLER' ? `판매자 #${c.sellerId ?? '-'} 상품` : '전체 상품';
+export function scopeLabel(c: CouponLike, view: CouponScopeView = 'buyer'): string {
+    if (c.scope !== 'SELLER') return '전체 상품';
+    if (view === 'admin') return `판매자 #${c.sellerId ?? '-'} 상품`;
+    return view === 'sellerPage' ? '이 판매자 상품 전용' : '판매자 전용';
 }
 
 // 받기 전 쿠폰의 사용 기간 안내: 날짜까지 / 받은 날부터 N일
