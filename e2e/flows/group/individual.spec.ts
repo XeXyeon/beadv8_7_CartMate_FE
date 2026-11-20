@@ -1,12 +1,16 @@
 import { expect, test } from '@playwright/test';
 import { withRunId } from '../../support/run';
-import { closePeople, createPost, findPickButton, openPerson, requireBalance, walletBalance, type Person } from '../../support/group-helpers';
+import { releaseAbuse, closePeople, createPost, findPickButton, openPerson, requireBalance, walletBalance, type Person } from '../../support/group-helpers';
 import { authFile } from '../../support/auth';
 
 // E13 — 개인물품 공구: 만든 사람이 공구를 열고 → 초대 링크로 들어온 사람이 주문 → 개인 주문서에서 결제 → 만든 사람 현황판에 주문이 보인다.
 // 만든 사람 = e2e-buyer2(잔액 불필요), 주문하는 사람 = e2e-buyer1.
 
 const PRICE = 10_000;
+
+test.beforeEach(async ({ playwright, baseURL }) => {
+    await releaseAbuse(playwright, baseURL, ['buyer1', 'buyer2']);
+});
 
 test('E13 개인물품 공구 생성 → 초대 링크로 주문 → 결제 → 현황판에 주문', async ({ browser, baseURL, playwright }) => {
     let creator: Person | undefined;

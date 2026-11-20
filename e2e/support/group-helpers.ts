@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Browser, type BrowserContext, type Locator, type Page, type PlaywrightWorkerArgs } from '@playwright/test';
 import { authFile, type AccountKey } from './auth';
 import { withRunId } from './run';
 
@@ -207,4 +207,28 @@ export async function paySharedShare(page: Page) {
     }
     await page.getByText(/결제하면 예치금에서 바로 차감됩니다/).click();
     await page.getByRole('button', { name: /원 결제하기$/ }).click();
+}
+
+/**
+ * 공동구매 남용 제한(만든 사람 취소 · 나가기 등이 쌓이면 CAUTION → RESTRICTED) 풀기.
+ * 이 흐름은 취소 · 나가기를 되풀이하므로 테스트 시작 전에 관리자 API(`POST /api/admin/abuse/members/{id}/release`)로 쓰는 계정의 제한과 점수 기준점을 지운다.
+ * 관리자 쿠키는 setup이 막 저장한 로그인 상태(storageState)를 읽는다. 쓰는 것은 로컬 환경의 order 서비스뿐이다.
+ */
+export async function releaseAbuse(playwright: PlaywrightWorkerArgs['playwright'], baseURL: string | undefined, keys: AccountKey[]) {
+    // FE에는 이 관리자 API의 프록시가 없어 로컬 order 서비스(18986)를 직접 부른다. 쿠키(localhost)는 포트와 무관하게 실린다.
+    const admin = await playwright.request.newContext({ baseURL: 'http://localhost:18986', storageState: authFile('admin') });
+    try {
+        for (const key of keys) {
+            const me = await playwright.request.newContext({ baseURL, storageState: authFile(key) });
+            try {
+                const memberId = Number((await json(await me.get('/api/members/me'), `${key} 내 정보`)).id);
+                const res = await admin.post(`/api/admin/abuse/members/${memberId}/release`, { data: { reason: 'e2e 반복 실행을 위한 제한 해제' } });
+                if (!res.ok()) throw new Error(`${key} 남용 제한 해제 실패: ${res.status()} ${(await res.text()).slice(0, 200)}`);
+            } finally {
+                await me.dispose();
+            }
+        }
+    } finally {
+        await admin.dispose();
+    }
 }

@@ -11,6 +11,7 @@ import {
     openPerson,
     openSharedPayment,
     paySharedShare,
+    releaseAbuse,
     requireBalance,
     shareAmount,
     walletBalance,
@@ -25,6 +26,11 @@ import { authFile } from '../../support/auth';
 const PRICE = 10_000; // 2명이 나누면 5,000원씩
 
 test.describe('N빵 공동 주문', () => {
+    // 공동구매 남용 제한이 걸려 있으면 풀고 시작한다(취소 · 나가기를 되풀이하는 흐름)
+    test.beforeEach(async ({ playwright, baseURL }) => {
+        await releaseAbuse(playwright, baseURL, ['buyer1', 'buyer2']);
+    });
+
     test('E10 N빵 생성 → 초대 → 담기 → 마감 → 분담금 결제 → 공동 주문 확정', async ({ browser, baseURL, playwright }) => {
         let creator: Person | undefined;
         let member: Person | undefined;

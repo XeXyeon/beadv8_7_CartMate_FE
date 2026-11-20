@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { authFile } from '../../support/auth';
 import { withRunId } from '../../support/run';
-import { addSharedItem, headcount, closePeople, closeSharedGroup, createPost, createSharedGroup, joinByInvite, openPerson, openSharedPayment, invitePath, type Person } from '../../support/group-helpers';
+import { addSharedItem, headcount, closePeople, closeSharedGroup, createPost, createSharedGroup, joinByInvite, openPerson, openSharedPayment, releaseAbuse, invitePath, type Person } from '../../support/group-helpers';
 
 // E22 — N빵 관리(나가기 · 강퇴 · 인원 늘리기 · 다시 만들기)와 가득 찬 · 마감된 초대 링크.
 // 만든 사람 = e2e-buyer1, 참여자 = e2e-buyer2, 세 번째 사람 = e2e-target(가입만 쓰고 돈은 쓰지 않는다).
@@ -10,6 +10,11 @@ const FULL = '참여 인원이 가득 찼습니다';
 const CLOSED = '수정 기간이 끝났거나 이미 마감·취소된 공동구매라 참여할 수 없습니다';
 
 test.describe('N빵 관리', () => {
+    // 공동구매 남용 제한이 걸려 있으면 풀고 시작한다(취소 · 나가기를 되풀이하는 흐름)
+    test.beforeEach(async ({ playwright, baseURL }) => {
+        await releaseAbuse(playwright, baseURL, ['buyer1', 'buyer2', 'target']);
+    });
+
     test('E22-1 가득 찬 초대 링크 → 인원 늘리기 → 참여 → 나가기 · 강퇴 → 취소 → 다시 만들기', async ({ browser, baseURL }) => {
         let creator: Person | undefined;
         let member: Person | undefined;
