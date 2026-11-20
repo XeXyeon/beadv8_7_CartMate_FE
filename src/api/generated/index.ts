@@ -8,6 +8,7 @@ export * from './admin-payback-condition-controller/admin-payback-condition-cont
 export * from './admin-payback-payout-controller/admin-payback-payout-controller';
 export * from './admin-payment-controller/admin-payment-controller';
 export * from './admin-sales-post-controller/admin-sales-post-controller';
+export * from './admin-wallet-withdraw-controller/admin-wallet-withdraw-controller';
 export * from './auth-controller/auth-controller';
 export * from './cart-controller/cart-controller';
 export * from './cart-match-controller/cart-match-controller';
@@ -17,6 +18,7 @@ export * from './delivery-controller/delivery-controller';
 export * from './individual-group-purchase-controller/individual-group-purchase-controller';
 export * from './member-address-controller/member-address-controller';
 export * from './member-controller/member-controller';
+export * from './member-payout-account-controller/member-payout-account-controller';
 export * from './member-withdrawal-controller/member-withdrawal-controller';
 export * from './notice-controller/notice-controller';
 export * from './order-controller/order-controller';

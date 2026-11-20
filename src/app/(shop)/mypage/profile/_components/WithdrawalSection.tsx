@@ -28,11 +28,12 @@ const BLOCKER_LINK: Record<string, { href: string; label: string }> = {
     SELLER_UNCONFIRMED_SALES: { href: ROUTES.sellerShipping, label: '배송 관리' },
     SELLER_CLAIMS_IN_PROGRESS: { href: ROUTES.sellerClaims, label: '클레임 관리' },
     SELLER_PENDING_PAYOUTS: { href: ROUTES.sellerSettlements, label: '정산 관리' },
-    WALLET_BALANCE_REMAINING: { href: ROUTES.deposit, label: '예치금' },
+    WALLET_BALANCE_REMAINING: { href: ROUTES.depositWithdraw, label: '예치금 환급' },
+    WALLET_WITHDRAW_IN_PROGRESS: { href: ROUTES.depositWithdraw, label: '출금 내역' },
 };
 
-// 예치금은 count가 건수가 아니라 잔액(원)이고, 금액은 서버 메시지에 이미 들어 있다
-const COUNTLESS_BLOCKERS = new Set(['WALLET_BALANCE_REMAINING']);
+// 예치금·진행 중 출금은 count가 건수가 아니라 금액(원)이고, 금액은 서버 메시지에 이미 들어 있다
+const COUNTLESS_BLOCKERS = new Set(['WALLET_BALANCE_REMAINING', 'WALLET_WITHDRAW_IN_PROGRESS']);
 
 // 확정과 겹쳐 취소가 실패한 경우 (계정이 이미 지워짐)
 const ALREADY_FINALIZED = '409-MEMBER_WITHDRAWAL_ALREADY_FINALIZED';

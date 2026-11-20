@@ -5,7 +5,9 @@
  * OpenAPI spec version: v0
  */
 
-export interface WalletWithdrawConfirmRequest {
-  /** @exclusiveMinimum 0 */
-  withdrawOrderId: number;
+export interface RsDataInteger {
+  resultCode?: string;
+  msg?: string;
+  data?: number;
+  statusCode?: number;
 }
