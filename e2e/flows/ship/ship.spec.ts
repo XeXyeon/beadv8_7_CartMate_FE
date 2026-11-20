@@ -409,7 +409,8 @@ test.describe('구매자 e2e-buyer1 · 판매자 e2e-seller', () => {
 
             await sp.goto('/seller/settlements');
             await expect(sp.getByText('정산 완료').first()).toBeVisible({ timeout: 30_000 });
-            await expect(sp.getByText(`₩ ${(PRICE - paid.feeAmount).toLocaleString('ko-KR')}`).first()).toBeVisible();
+            // 화면은 월 단위로 합산해 보여 주므로 개별 금액 대신 대기 0건과 지급 완료 행을 본다(금액은 위에서 DB로 확인)
+            await expect(sp.getByText(/정산 대기\s*0건/)).toBeVisible();
         } finally {
             await ctx.close();
         }

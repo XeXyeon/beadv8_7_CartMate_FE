@@ -124,8 +124,14 @@ try {
             const [[seller]] = row ? await member.query('SELECT id FROM seller WHERE member_id = ?', [row.id]) : [[null]];
             if (!seller) item.actions.push('seller');
             // 정산(payment)은 판매자 등록 이벤트로 판매자를 복제한다. seller 행을 직접 넣었으니 같은 복제본을 payout_seller에도 넣어야 정산 조회 · 지급이 된다.
-            const [[replica]] = seller ? await payment.query('SELECT seller_id FROM payout_seller WHERE seller_id = ?', [seller.id]) : [[null]];
-            if (seller && !replica) item.actions.push('payout_seller');
+            if (!seller || !row) {
+                item.actions.push('payout_seller');
+            } else {
+                const [replicas] = await payment.query('SELECT seller_id, member_id FROM payout_seller WHERE seller_id = ? OR member_id = ?', [seller.id, row.id]);
+                if (replicas.length === 0) item.actions.push('payout_seller');
+                else if (replicas.length > 1 || Number(replicas[0].seller_id) !== Number(seller.id) || Number(replicas[0].member_id) !== Number(row.id))
+                    fail(`${a.email}: payout_seller에 어긋난 행이 있습니다(${JSON.stringify(replicas)}). 직접 확인하세요.`);
+            }
         }
         if (a.role === 'ADMIN') {
             const [[otp]] = row ? await member.query('SELECT enabled_at, secret_encrypted FROM member_otp WHERE member_id = ?', [row.id]) : [[null]];
@@ -248,6 +254,7 @@ try {
 
         if (p.actions.includes('payout_seller')) {
             const [[sellerRow]] = await member.query('SELECT id FROM seller WHERE member_id = ?', [memberId]);
+            if (!sellerRow) fail(`${a.email}: seller 행을 찾지 못했습니다.`);
             await payment.query('INSERT INTO payout_seller (seller_id, member_id) VALUES (?, ?)', [sellerRow.id, memberId]);
             written.push(`${a.email}: payout_seller#${sellerRow.id}`);
         }
