@@ -230,10 +230,25 @@ services:
       retries: 60
       start_period: 40s
 
+  # 토스 가짜 서버(e2e/infra/toss-stub). 카드사 인증을 자동화할 수 없어 E02 충전 승인만 흉내 낸다 — 운영과 다른 점
+  toss-stub:
+    image: node:22.12.0-alpine3.20
+    restart: unless-stopped
+    mem_limit: 64m
+    working_dir: /app
+    command: ["node", "server.mjs"]
+    volumes: [ "./toss-stub:/app:ro" ]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   payment-service:
     <<: *svc
     image: cartmate-e2e-payment-service
     depends_on:
+      toss-stub: { condition: service_healthy }
       mysql-payment: { condition: service_healthy }
       redis-cache: { condition: service_healthy }
       redis-core: { condition: service_healthy }
@@ -246,6 +261,8 @@ services:
       WALLET_ACCOUNT_ENCRYPTION_KEY: Y2FydG1hdGUtbG9jYWwtd2FsbGV0LWFjY3Qta2V5ISE=
       # 운영은 manual(관리자 수동 송금). 로컬은 fake 라 출금(E19)이 자동으로 끝난다 — 운영과 다른 값
       WALLET_TRANSFER_MODE: fake
+      # 토스 승인 · 조회를 호출하는 곳을 컨테이너 안의 가짜 토스(toss-stub)로 돌린다. 운영은 https://api.tosspayments.com — 운영과 다른 값
+      CUSTOM_WALLET_TOSS_BASEURL: http://toss-stub:8080
       # 정산 지급 cron(기본 매일 00:10). E2E 가 짧게 돌릴 수 있게 연다: E2E_PAYOUT_CRON="0 * * * * *" npm run e2e:env:up
       CUSTOM_PAYOUT_CRON: "${E2E_PAYOUT_CRON:-0 10 0 * * *}"
     ports: ["18983:8983"]
