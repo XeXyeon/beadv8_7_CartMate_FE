@@ -38,7 +38,11 @@ export default function ProductDetail({ initialData }: { initialData?: DetailRes
     const postId = Number(id);
     const validId = Number.isInteger(postId) && postId > 0;
 
-    const query = useSelectSalesPostDetail(postId, { query: { enabled: validId, initialData } });
+    // 클라이언트 이동 때 라우터가 직전 상품의 서버 응답을 그대로 다시 쓰는 경우가 있다(뒤로 가기 뒤 다른 상품 클릭 등).
+    // 그 응답을 그대로 initialData로 쓰면 지금 상품 id 캐시에 이전 상품이 들어가 새로고침 전까지 이전 상품이 보인다.
+    // 그래서 URL의 id와 같은 판매글일 때만 초기 데이터로 쓰고, 아니면 브라우저에서 새로 불러온다.
+    const matchingInitialData = initialData?.data?.id === postId ? initialData : undefined;
+    const query = useSelectSalesPostDetail(postId, { query: { enabled: validId, initialData: matchingInitialData } });
     const post = query.data?.data;
 
     if (!validId || (query.error instanceof ApiError && query.error.status === 404)) {
@@ -165,6 +169,7 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                     )}
                     <ProductActions
                         postId={post.id ?? 0}
+                        sellerId={post.sellerId}
                         inventoryId={inventory?.inventoryId ?? null}
                         available={inventory?.available ?? 0}
                         quantity={shownQuantity}

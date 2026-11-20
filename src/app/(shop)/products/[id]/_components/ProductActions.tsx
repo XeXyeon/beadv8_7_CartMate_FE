@@ -10,12 +10,13 @@ import { addItem1, changeQuantity, getCart, getGetCartQueryKey, useAddItem1 } fr
 import type { RsDataCartResponse } from '@/api/generated/model';
 import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
-import { useCurrentUser } from '@/lib/auth';
+import { useCurrentUser, useMySellerId } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
 
 type Props = {
     postId: number;
+    sellerId: number | undefined; // 판매글의 판매자 번호(seller.id)
     inventoryId: number | null; // 고른 상품 · 옵션 조합의 재고. 아직 다 고르지 않았으면 null
     available: number; // 그 재고의 구매 가능 수량
     quantity: number;
@@ -27,10 +28,11 @@ type Props = {
 // 상품 상세의 구매 버튼 영역.
 // - 장바구니 담기: 고른 상품 · 옵션 조합의 재고(inventoryId)를 담는다. 옵션을 다 고르지 않았거나 품절이면 막는다
 // - 바로 구매: BE에 바로 주문 API가 없어 장바구니를 거친다. 고른 재고를 담고 그 항목만 주문서(/checkout?items=)로 보낸다
-export default function ProductActions({ postId, inventoryId, available, quantity, onSale, total }: Props) {
+export default function ProductActions({ postId, sellerId, inventoryId, available, quantity, onSale, total }: Props) {
     const router = useRouter();
     const queryClient = useQueryClient();
     const { isLoggedIn, isLoading: userLoading } = useCurrentUser();
+    const { sellerId: mySellerId } = useMySellerId();
     const addToCart = useAddItem1({
         mutation: {
             // 헤더의 장바구니 개수 등이 바로 갱신되도록 장바구니 조회를 다시 불러온다.
@@ -50,7 +52,10 @@ export default function ProductActions({ postId, inventoryId, available, quantit
     });
 
     const soldOut = inventoryId !== null && available <= 0;
-    const canBuy = onSale && inventoryId !== null && !soldOut;
+    // 판매자는 자기 상품을 살 수 없다(BE가 막는다). 눌러 보고 에러를 받기 전에 버튼을 끈다.
+    // 판매글의 sellerId는 판매자 번호(seller.id)라서 회원 번호가 아니라 내 판매자 번호와 비교한다
+    const isMyPost = mySellerId != null && sellerId != null && mySellerId === sellerId;
+    const canBuy = onSale && inventoryId !== null && !soldOut && !isMyPost;
     // 결과 메시지는 지금 고른 재고 · 수량으로 담았을 때만 보여 준다. (다른 옵션을 고르면 이전 결과를 숨긴다)
     const sent = addToCart.variables?.data;
     const isCurrent = sent?.inventoryId === inventoryId && sent?.quantity === quantity;
@@ -114,7 +119,19 @@ export default function ProductActions({ postId, inventoryId, available, quantit
                     onClick={handleBuyNow}
                 />
             </div>
-            {onSale ? <Button label="공동구매 시작하기" href={ROUTES.groupPurchaseNew} as={Link} variant="secondary" size="lg" width="100%" icon={<Icon name="group_add" />} isDisabled={busy} /> : <Button label="공동구매 시작하기" variant="secondary" size="lg" width="100%" icon={<Icon name="group_add" />} isDisabled tooltip="판매 중인 상품만 공동구매를 시작할 수 있습니다" />}
+            {onSale && !isMyPost ? (
+                <Button label="공동구매 시작하기" href={ROUTES.groupPurchaseNew} as={Link} variant="secondary" size="lg" width="100%" icon={<Icon name="group_add" />} isDisabled={busy} />
+            ) : (
+                <Button
+                    label="공동구매 시작하기"
+                    variant="secondary"
+                    size="lg"
+                    width="100%"
+                    icon={<Icon name="group_add" />}
+                    isDisabled
+                    tooltip={isMyPost ? '본인 상품으로는 공동구매를 시작할 수 없습니다' : '판매 중인 상품만 공동구매를 시작할 수 있습니다'}
+                />
+            )}
             {addToCart.isSuccess && isCurrent && (
                 <div className="flex items-center gap-2" role="status">
                     <Icon name="check_circle" className="text-[16px] text-primary" />
@@ -134,8 +151,9 @@ export default function ProductActions({ postId, inventoryId, available, quantit
                     {errorMessage(buyNow.error, '주문서로 넘어가지 못했습니다.')}
                 </p>
             )}
-            {!onSale && <Text type="supporting" color="secondary">현재 판매하지 않는 상품은 구매할 수 없습니다.</Text>}
-            {onSale && soldOut && <Text type="supporting" className="text-error">품절된 옵션입니다. 다른 옵션을 골라 주세요.</Text>}
+            {isMyPost && <Text type="supporting" color="secondary">본인이 판매하는 상품은 구매할 수 없습니다.</Text>}
+            {!isMyPost && !onSale && <Text type="supporting" color="secondary">현재 판매하지 않는 상품은 구매할 수 없습니다.</Text>}
+            {!isMyPost && onSale && soldOut && <Text type="supporting" className="text-error">품절된 옵션입니다. 다른 옵션을 골라 주세요.</Text>}
         </div>
     );
 }
