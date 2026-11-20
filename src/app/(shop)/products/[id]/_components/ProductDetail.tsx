@@ -165,6 +165,7 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                     )}
                     <ProductActions
                         postId={post.id ?? 0}
+                        sellerId={post.sellerId}
                         inventoryId={inventory?.inventoryId ?? null}
                         available={inventory?.available ?? 0}
                         quantity={shownQuantity}
