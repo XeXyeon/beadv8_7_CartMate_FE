@@ -1,0 +1,48 @@
+name: CI
+
+# 배포는 Vercel이 맡는다(GitHub 저장소 연결): main push → 운영 배포, PR → 미리보기 배포
+# 이 워크플로는 PR · push마다 린트와 빌드만 확인한다. 브랜치 보호 규칙에서 이 검사를 필수로 두면
+# CI를 통과한 코드만 main에 들어가고, Vercel은 그 코드만 배포한다
+on:
+  pull_request:
+    branches: [ dev, main ]
+  push:
+    branches: [ dev, main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24.22.3   # Vercel 프로젝트의 Node.js 버전(24.x)과 맞춘다
+
+# 액션은 태그가 아니라 커밋 해시로 고정한다(태그는 액션 저장소 쪽에서 다른 커밋으로 옮길 수 있다). 주석은 해시의 버전
+jobs:
+  # 린트와 빌드(next build가 타입 검사를 같이 한다)
+  ci-pipeline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
