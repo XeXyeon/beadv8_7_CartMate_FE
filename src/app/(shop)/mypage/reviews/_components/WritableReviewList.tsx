@@ -45,14 +45,14 @@ export default function WritableReviewList() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             }),
-        onError: (error) => window.alert(errorMessage(error, '리뷰를 쓰지 못했습니다.')),
     });
 
-    async function write(item: WritableReview, rating: number, content: string): Promise<boolean> {
+    // 성공하면 null, BE가 거절하면 그 이유(리뷰 입력 아래 글씨로 보인다)
+    async function write(item: WritableReview, rating: number, content: string): Promise<string | null> {
         try {
             await create.mutateAsync({ purchaseId: item.purchaseId, rating, content });
-        } catch {
-            return false;
+        } catch (error) {
+            return errorMessage(error, '리뷰를 쓰지 못했습니다.');
         }
         setOpenId(null);
         setDoneMessage(`${item.productName} 리뷰를 등록했습니다.`);
@@ -62,7 +62,7 @@ export default function WritableReviewList() {
             queryClient.invalidateQueries({ queryKey: ['sales-post-reviews', item.salesPostId] }),
             queryClient.invalidateQueries({ queryKey: getSelectSalesPostDetailQueryKey(item.salesPostId) }),
         ]);
-        return true;
+        return null;
     }
 
     if (query.isPending) {
