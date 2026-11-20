@@ -30,6 +30,7 @@ const REQUIRED_COLUMNS = {
     seller: ['member_id', 'seller_type', 'phone_number', 'bank_name', 'account_holder', 'account_number', 'status', 'created_at', 'updated_at'],
     trusted_device: ['member_id', 'token_hash', 'device_name', 'last_used_at', 'expires_at', 'created_at', 'updated_at'],
     wallet: ['member_id', 'balance', 'version', 'created_at', 'updated_at'],
+    payout_seller: ['seller_id', 'member_id'],
     member_otp: ['member_id', 'secret_encrypted', 'enabled_at', 'last_used_step', 'created_at', 'updated_at'],
 };
 
@@ -95,7 +96,7 @@ const member = await connect(memberDb);
 const payment = await connect(paymentDb);
 try {
     await assertColumns(member, memberDb.database, ['member', 'member_address', 'seller', 'trusted_device', 'member_otp']);
-    await assertColumns(payment, paymentDb.database, ['wallet']);
+    await assertColumns(payment, paymentDb.database, ['wallet', 'payout_seller']);
 
     // ── 현재 상태를 읽어 할 일을 정한다(읽기만) ───────────────────────────────
     const plan = [];
@@ -122,6 +123,9 @@ try {
         if (a.seller) {
             const [[seller]] = row ? await member.query('SELECT id FROM seller WHERE member_id = ?', [row.id]) : [[null]];
             if (!seller) item.actions.push('seller');
+            // 정산(payment)은 판매자 등록 이벤트로 판매자를 복제한다. seller 행을 직접 넣었으니 같은 복제본을 payout_seller에도 넣어야 정산 조회 · 지급이 된다.
+            const [[replica]] = seller ? await payment.query('SELECT seller_id FROM payout_seller WHERE seller_id = ?', [seller.id]) : [[null]];
+            if (seller && !replica) item.actions.push('payout_seller');
         }
         if (a.role === 'ADMIN') {
             const [[otp]] = row ? await member.query('SELECT enabled_at, secret_encrypted FROM member_otp WHERE member_id = ?', [row.id]) : [[null]];
@@ -240,6 +244,12 @@ try {
                 [memberId],
             );
             written.push(`${a.email}: wallet`);
+        }
+
+        if (p.actions.includes('payout_seller')) {
+            const [[sellerRow]] = await member.query('SELECT id FROM seller WHERE member_id = ?', [memberId]);
+            await payment.query('INSERT INTO payout_seller (seller_id, member_id) VALUES (?, ?)', [sellerRow.id, memberId]);
+            written.push(`${a.email}: payout_seller#${sellerRow.id}`);
         }
     }
 
