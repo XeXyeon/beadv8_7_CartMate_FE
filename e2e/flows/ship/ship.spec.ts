@@ -402,6 +402,10 @@ test.describe('구매자 e2e-buyer1 · 판매자 e2e-seller', () => {
             }
             const paid = (await listPayouts(sellerId)).find((p) => p.id === row.id)!;
             expect(paid.paidAt).not.toBeNull();
+            // 수수료 3%(내림)를 뺀 금액이 이 주문의 지급액이고, 판매자 잔액은 대기 정산 지급액 합계만큼 정확히 늘어야 한다
+            expect(paid.feeAmount).toBe(Math.floor((PRICE * 3) / 100));
+            expect(paid.payoutAmount).toBe(PRICE - Math.floor((PRICE * 3) / 100));
+            expect(expectedDeposit).toBeGreaterThanOrEqual(paid.payoutAmount);
 
             // 이 판매자의 대기 정산이 모두 지급됐고, 판매자 잔액은 지급액(수수료 3% 제외) 합계만큼 늘었다
             expect((await listPayouts(sellerId)).filter((p) => p.status === 'PENDING')).toHaveLength(0);
