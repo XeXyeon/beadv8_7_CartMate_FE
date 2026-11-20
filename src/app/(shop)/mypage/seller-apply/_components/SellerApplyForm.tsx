@@ -6,6 +6,7 @@ import { Badge, Button, Card, Heading, Text } from '@astryxdesign/core';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/Icon';
 import { apiFetch, ApiError } from '@/lib/api';
+import { useRefreshCurrentUser } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 
 type SellerType = 'INDIVIDUAL' | 'BUSINESS';
@@ -60,6 +61,7 @@ const errorMessage = (e: unknown, fallback: string) => (e instanceof ApiError ? 
 
 export default function SellerApplyForm() {
     const router = useRouter();
+    const refreshCurrentUser = useRefreshCurrentUser();
 
     const [loading, setLoading] = useState(true);
     const [seller, setSeller] = useState<Seller | null>(null);
@@ -199,6 +201,7 @@ export default function SellerApplyForm() {
             });
             alert('판매자 등록이 완료되었습니다. 이제 판매자 센터를 이용할 수 있습니다.');
             setSeller(res.data);
+            void refreshCurrentUser(); // 헤더 · 메뉴의 판매자 센터 링크가 바로 보이게
             router.refresh();
         } catch (e) {
             if (e instanceof ApiError && e.resultCode === '400-SELLER_ACCOUNT_NOT_VERIFIED') {

@@ -6,6 +6,7 @@ import { Badge, Button, Card, Heading, Text } from '@astryxdesign/core';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/Icon';
 import { apiFetch, ApiError } from '@/lib/api';
+import { useRefreshCurrentUser } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
 import TrustedDeviceSection from './TrustedDeviceSection';
 import WithdrawalSection from './WithdrawalSection';
@@ -55,6 +56,7 @@ const errorMessage = (e: unknown, fallback: string) => (e instanceof ApiError ? 
 
 export default function ProfileContent() {
     const router = useRouter();
+    const refreshCurrentUser = useRefreshCurrentUser();
 
     const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -219,6 +221,7 @@ export default function ProfileContent() {
                 setNewPasswordConfirm('');
             }
             alert('변경사항이 저장되었습니다.');
+            void refreshCurrentUser(); // 헤더 닉네임이 바로 바뀌게
             router.refresh();
         } catch (e) {
             setFormError(errorMessage(e, '저장 중 오류가 발생했습니다.'));
