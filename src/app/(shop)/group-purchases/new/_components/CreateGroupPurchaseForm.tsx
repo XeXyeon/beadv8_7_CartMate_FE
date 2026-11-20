@@ -14,6 +14,7 @@ import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { useCurrentUser } from '@/lib/auth';
 import { ROUTES } from '@/lib/routes';
+import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
 
 // 제한은 BE SharedGroupPurchaseCreateRequest 검증과 맞춘다.
 const TITLE_MAX = 50;
@@ -136,6 +137,7 @@ export default function CreateGroupPurchaseForm() {
                                     max={MAX_PARTICIPANTS}
                                     min={MIN_PARTICIPANTS}
                                     type="number"
+                                    onWheel={blurOnWheel}
                                     {...register('maxParticipants', { valueAsNumber: true })}
                                 />
                                 <span className="font-body-md text-body-md text-secondary ml-1">명</span>

@@ -7,6 +7,7 @@ import type { PaybackConditionResponse, AdminPaybackConditionRequestOverlapPolic
 import { useReleaseAdminPaybackCondition, useSetAdminPaybackCondition } from '@/api/generated/admin-payback-condition-controller/admin-payback-condition-controller';
 import { getGetProductPaybackConditionsQueryKey, useGetProductPaybackConditions } from '@/api/generated/payback-condition-controller/payback-condition-controller';
 import { ApiError, errorMessage } from '@/api/http';
+import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
 
 const policies: { value: AdminPaybackConditionRequestOverlapPolicy; label: string; description: string }[] = [
     { value: 'BOTH', label: '기준을 충족한 조건 모두', description: '각 조건의 기준을 충족하면 둘 다 적용합니다.' },
@@ -131,10 +132,10 @@ function AdminConditionForm({ productId, admin, hasSeller, blocked, onStart, onD
             <Heading level={4}>플랫폼 부담 조건 {admin ? '수정' : '설정'}</Heading>
             <div className="grid grid-cols-2 gap-space-sm">
                 <label className="font-label-sm text-label-sm flex flex-col gap-space-xs">공동구매 내 구매확정 기준 수량
-                    <input type="number" min={2} max={100000} step={1} required disabled={disabled} value={minQuantity} onChange={(event) => setMinQuantity(event.target.value)} className="h-10 px-space-sm border border-outline-variant rounded bg-surface-container-lowest" />
+                    <input type="number" onWheel={blurOnWheel} min={2} max={100000} step={1} required disabled={disabled} value={minQuantity} onChange={(event) => setMinQuantity(event.target.value)} className="h-10 px-space-sm border border-outline-variant rounded bg-surface-container-lowest" />
                 </label>
                 <label className="font-label-sm text-label-sm flex flex-col gap-space-xs">내 구매확정 1개당 금액 (원)
-                    <input type="number" min={1} max={100000} step={1} required disabled={disabled} value={amountPerUnit} onChange={(event) => setAmountPerUnit(event.target.value)} className="h-10 px-space-sm border border-outline-variant rounded bg-surface-container-lowest" />
+                    <input type="number" onWheel={blurOnWheel} min={1} max={100000} step={1} required disabled={disabled} value={amountPerUnit} onChange={(event) => setAmountPerUnit(event.target.value)} className="h-10 px-space-sm border border-outline-variant rounded bg-surface-container-lowest" />
                 </label>
             </div>
             <label className="font-label-sm text-label-sm flex flex-col gap-space-xs">두 조건의 중복 적용 방식

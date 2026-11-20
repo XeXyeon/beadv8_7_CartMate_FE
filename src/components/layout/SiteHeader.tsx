@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Icon from '@/components/ui/Icon';
 import HeaderAccountNav from '@/components/layout/HeaderAccountNav';
 import SidebarNav from '@/components/layout/SidebarNav';
+import StickyHeaderOffset from '@/components/layout/StickyHeaderOffset';
 import { ROUTES } from '@/lib/routes';
 
 const NAV_ITEMS = [
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
 export default function SiteHeader() {
     return (
         <header className="sticky top-0 z-50 border-b border-outline-variant bg-surface-container-lowest/95 backdrop-blur">
+            <StickyHeaderOffset />
             <div className="mx-auto max-w-[1200px] px-4 py-3 sm:px-6">
                 <div className="flex items-center gap-3">
                     <Link href={ROUTES.home} className="flex shrink-0 items-center gap-2" aria-label="TEAMBUY 홈">

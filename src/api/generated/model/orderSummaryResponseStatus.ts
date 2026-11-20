@@ -12,5 +12,4 @@ export const OrderSummaryResponseStatus = {
   PAYMENT_PENDING: 'PAYMENT_PENDING',
   PAID: 'PAID',
   CANCELED: 'CANCELED',
-  CANCEL_REQUESTED: 'CANCEL_REQUESTED',
 } as const;

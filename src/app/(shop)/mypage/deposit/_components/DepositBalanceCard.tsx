@@ -27,7 +27,7 @@ export default function DepositBalanceCard() {
     }
 
     return (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {/* Card 1: Total Holding Balance */}
             <Card padding={5} className="relative flex flex-col justify-between overflow-hidden">
                 <div>

@@ -101,7 +101,7 @@ export default function MyPageContent() {
         return (
             <div>
                 <div className="h-8 w-64 rounded bg-surface-container animate-pulse mb-space-xl" />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
                     {[0, 1, 2].map((i) => (
                         <div key={i} className="h-36 rounded bg-surface-container animate-pulse" />
                     ))}
@@ -165,7 +165,7 @@ export default function MyPageContent() {
         >
                     <div className="flex min-w-0 flex-col gap-6">
                         {/* 요약 카드 */}
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
                             {metricCards.map((card) => (
                                 <Card key={card.label} padding={4} className="flex flex-col justify-between">
                                     <div>
@@ -262,11 +262,11 @@ export default function MyPageContent() {
                                     <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="border-b border-outline-variant font-label-sm text-label-sm text-outline">
-                                                <th className="py-3 px-2 font-medium">주문일자 / 번호</th>
-                                                <th className="py-3 px-2 font-medium">상품명 / 옵션</th>
-                                                <th className="py-3 px-2 font-medium">수량</th>
-                                                <th className="py-3 px-2 font-medium">결제금액</th>
-                                                <th className="py-3 px-2 font-medium text-right">주문상태</th>
+                                                <th className="py-3 px-2 font-medium whitespace-nowrap">주문일자 / 번호</th>
+                                                <th className="py-3 px-2 font-medium whitespace-nowrap">상품명 / 옵션</th>
+                                                <th className="py-3 px-2 font-medium whitespace-nowrap">수량</th>
+                                                <th className="py-3 px-2 font-medium whitespace-nowrap">결제금액</th>
+                                                <th className="py-3 px-2 font-medium text-right whitespace-nowrap">주문상태</th>
                                             </tr>
                                         </thead>
                                         <tbody className="font-body-sm text-body-sm divide-y divide-surface-container">
@@ -282,8 +282,8 @@ export default function MyPageContent() {
                                                             <div className="font-label-md text-on-surface font-bold">{order.name}</div>
                                                             {order.option && <div className="text-outline text-caption">{order.option}</div>}
                                                         </td>
-                                                        <td className="py-3 px-2">{order.quantity}</td>
-                                                        <td className="py-3 px-2 font-bold">{won(order.amount)}</td>
+                                                        <td className="py-3 px-2 whitespace-nowrap">{order.quantity}</td>
+                                                        <td className="py-3 px-2 font-bold whitespace-nowrap">{won(order.amount)}</td>
                                                         <td className="py-3 px-2 text-right">
                                                             <Badge label={status.text} variant={status.variant} />
                                                         </td>

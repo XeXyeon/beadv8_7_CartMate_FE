@@ -6,7 +6,7 @@ import MyPageSidebar from '@/components/layout/MyPageSidebar';
 export default function MyPageLayout({ children }: { children: ReactNode }) {
     return (
         <div className="mx-auto w-full max-w-[1200px] px-gutter py-8 sm:py-12">
-            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[240px_minmax(0,1fr)]">
                 <MyPageSidebar />
                 <div className="min-w-0">{children}</div>
             </div>

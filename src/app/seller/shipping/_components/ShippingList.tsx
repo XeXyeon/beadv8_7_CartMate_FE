@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, Card, Heading } from '@astryxdesign/core';
+import { Badge, Button, Card, CheckboxInput, Heading } from '@astryxdesign/core';
 import { getGetSellerDeliveriesQueryKey, useGetSellerDeliveries, useReadyDelivery, useShipDelivery } from '@/api/generated/delivery-controller/delivery-controller';
 import { GetSellerDeliveriesStatus } from '@/api/generated/model';
 import type { SellerDeliveryResponse } from '@/api/generated/model';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { deliveryCancelLabel } from '@/lib/cancelReason';
 import { formatDateTime, formatPhone } from '@/lib/format';
+import CancelDeliveryDialog from './CancelDeliveryDialog';
 import { readShippingStatus } from './ShippingStatusTabs';
 
 const COURIERS = ['CJ대한통운', '우체국택배', '롯데택배'];
@@ -37,11 +39,25 @@ function readPage(raw: string | null): number {
     return Number.isInteger(page) && page >= 1 ? page : 1;
 }
 
+// 취소된 상품은 보내지 않으므로 수량에서 뺀다.
 function totalQuantity(delivery: SellerDeliveryResponse): number {
-    return (delivery.items ?? []).reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+    return (delivery.items ?? []).filter((item) => !item.canceledAt).reduce((sum, item) => sum + (item.quantity ?? 0), 0);
 }
 
-function DeliveryRow({ delivery }: { delivery: SellerDeliveryResponse }) {
+// 판매자가 직접 취소할 수 있는 상태: 물건이 나가기 전(배송요청·배송준비).
+function isCancelable(status: string | undefined): boolean {
+    return status === GetSellerDeliveriesStatus.REQUESTED || status === GetSellerDeliveriesStatus.PREPARING;
+}
+
+type RowProps = {
+    delivery: SellerDeliveryResponse;
+    selectable: boolean;
+    selected: boolean;
+    onToggle: () => void;
+    onCancel: () => void;
+};
+
+function DeliveryRow({ delivery, selectable, selected, onToggle, onCancel }: RowProps) {
     const queryClient = useQueryClient();
     const items = delivery.items ?? [];
     const address = [delivery.zipCode && `[${delivery.zipCode}]`, delivery.address, delivery.addressDetail].filter(Boolean).join(' ');
@@ -88,6 +104,11 @@ function DeliveryRow({ delivery }: { delivery: SellerDeliveryResponse }) {
 
     return (
         <tr className="hover:bg-surface-container-low transition-colors">
+            {selectable && (
+                <td className="p-space-md">
+                    <CheckboxInput label={`${orderLabel} 선택`} isLabelHidden size="sm" value={selected} onChange={onToggle} />
+                </td>
+            )}
             <td className="p-space-md">
                 {/* 공유 공동구매 배송과 이전에 만든 배송은 주문번호가 없어 주문 ID 로 대신한다. */}
                 <div className="font-label-md text-primary">{delivery.orderNumber ?? `#${delivery.orderId ?? '-'}`}</div>
@@ -95,9 +116,11 @@ function DeliveryRow({ delivery }: { delivery: SellerDeliveryResponse }) {
             </td>
             <td className="p-space-md">
                 {items.map((item) => (
-                    <div key={item.deliveryItemId}>
-                        <div className="font-label-md">{item.productName ?? '상품 정보 없음'}</div>
+                    <div key={item.deliveryItemId} className={item.canceledAt ? 'text-outline' : undefined}>
+                        <div className={`font-label-md ${item.canceledAt ? 'line-through' : ''}`}>{item.productName ?? '상품 정보 없음'}</div>
                         <div className="text-caption text-on-surface-variant">{(item.options ?? []).map((option) => `${option.optionName}: ${option.optionValue}`).join(' / ')}</div>
+                        {/* 상품 단위로 취소된 상품. 남은 상품만 보낸다. */}
+                        {item.canceledAt && <div className="text-caption text-error">취소 · {deliveryCancelLabel(item.cancelReason) ?? '사유 기록 없음'}</div>}
                     </div>
                 ))}
             </td>
@@ -142,6 +165,7 @@ function DeliveryRow({ delivery }: { delivery: SellerDeliveryResponse }) {
                     {/* 배송 중·완료 등 판매자가 더 할 일이 없는 행에는 버튼을 두지 않는다. */}
                     {(editable || isPreparing) && (
                         <div className="flex justify-end gap-1">
+                            <Button label="취소" variant="destructive" size="sm" isDisabled={busy} onClick={onCancel} />
                             {editable ? (
                                 <Button label={ready.isPending ? '처리 중…' : '등록'} isDisabled={busy} onClick={register} />
                             ) : (
@@ -155,6 +179,43 @@ function DeliveryRow({ delivery }: { delivery: SellerDeliveryResponse }) {
                         </p>
                     )}
                 </div>
+            </td>
+        </tr>
+    );
+}
+
+// 배송 취소 탭의 한 행. 읽기 전용이라 입력·버튼 없이 취소 사유와 시각을 보여 준다.
+function CanceledRow({ delivery }: { delivery: SellerDeliveryResponse }) {
+    const items = delivery.items ?? [];
+    return (
+        <tr className="hover:bg-surface-container-low transition-colors">
+            <td className="p-space-md">
+                <div className="font-label-md text-primary">{delivery.orderNumber ?? `#${delivery.orderId ?? '-'}`}</div>
+                <div className="text-caption text-on-surface-variant">{formatDateTime(delivery.createdAt)}</div>
+            </td>
+            <td className="p-space-md">
+                {items.map((item) => (
+                    <div key={item.deliveryItemId} className="font-label-md">
+                        {item.productName ?? '상품 정보 없음'}
+                    </div>
+                ))}
+            </td>
+            <td className="p-space-md text-center font-label-md">{totalQuantity(delivery)}</td>
+            <td className="p-space-md">
+                <div className="font-label-md">{delivery.receiverName}</div>
+            </td>
+            <td className="p-space-md text-center">
+                <Badge label={STATUS_LABEL.CANCELED} />
+            </td>
+            <td className="p-space-md">
+                {/* 사유 칸이 생기기 전에 취소된 배송은 사유가 없다 */}
+                <div className="font-label-md">{deliveryCancelLabel(delivery.cancelReason) ?? '사유 기록 없음'}</div>
+                <div className="text-caption text-on-surface-variant">{formatDateTime(delivery.canceledAt)}</div>
+                {delivery.trackingNumber && (
+                    <div className="text-caption text-on-surface-variant">
+                        송장 {delivery.carrier} {delivery.trackingNumber}
+                    </div>
+                )}
             </td>
         </tr>
     );
@@ -178,9 +239,36 @@ export default function ShippingList() {
     const status = readShippingStatus(searchParams.get('status'));
     const page = readPage(searchParams.get('page'));
 
+    const queryClient = useQueryClient();
     const query = useGetSellerDeliveries({ status, page: page - 1, size: PAGE_SIZE });
     const result = query.data?.data;
     const rows = result?.content ?? [];
+    const canceledTab = status === GetSellerDeliveriesStatus.CANCELED;
+    // 배송요청·배송준비 탭에서만 골라서 한꺼번에 취소할 수 있다.
+    const selectable = isCancelable(status);
+
+    // 선택은 지금 보고 있는 탭·페이지 안에서만 유지한다. 탭이나 페이지를 바꾸면 빈 선택으로 시작한다.
+    const selectionKey = `${status}-${page}`;
+    const [selection, setSelection] = useState<{ key: string; ids: number[] }>({ key: selectionKey, ids: [] });
+    const visibleIds = new Set(rows.map((row) => row.deliveryId));
+    const selectedIds = selection.key === selectionKey ? selection.ids.filter((id) => visibleIds.has(id)) : [];
+    const selectedRows = rows.filter((row) => row.deliveryId !== undefined && selectedIds.includes(row.deliveryId));
+    const allSelected = rows.length > 0 && selectedRows.length === rows.length;
+    const [cancelTargets, setCancelTargets] = useState<SellerDeliveryResponse[] | null>(null);
+
+    function toggle(id: number) {
+        setSelection({ key: selectionKey, ids: selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id] });
+    }
+
+    function toggleAll() {
+        setSelection({ key: selectionKey, ids: allSelected ? [] : rows.flatMap((row) => (row.deliveryId === undefined ? [] : [row.deliveryId])) });
+    }
+
+    // 취소 요청이 끝나면 목록을 다시 받는다. 취소된 배송은 이 탭에서 빠지고, 실패한 건은 선택된 채로 남긴다.
+    function onCancelSettled(failedIds: number[]) {
+        setSelection({ key: selectionKey, ids: failedIds });
+        void queryClient.invalidateQueries({ queryKey: getGetSellerDeliveriesQueryKey() });
+    }
     const totalElements = result?.totalElements ?? 0;
     const totalPages = result?.totalPages ?? 0;
     const from = rows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -207,6 +295,14 @@ export default function ShippingList() {
                         <Heading level={2}>주문 목록</Heading>
                         {result && <span className="text-caption bg-surface-container-high text-on-surface px-2 py-0.5 rounded-full">총 {totalElements}건</span>}
                     </div>
+                    {selectable && (
+                        <div className="flex items-center gap-space-sm text-body-sm text-on-surface-variant">
+                            <span>
+                                선택된 항목 <span className="font-label-md text-on-surface">{selectedRows.length}건</span>
+                            </span>
+                            <Button label="선택 취소" variant="destructive" size="sm" isDisabled={selectedRows.length === 0} onClick={() => setCancelTargets(selectedRows)} />
+                        </div>
+                    )}
                 </div>
                 {query.isPending ? (
                     <TableSkeleton />
@@ -230,19 +326,35 @@ export default function ShippingList() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-surface-container-low border-b border-surface-variant text-caption font-label-md text-on-surface-variant uppercase">
+                                    {selectable && (
+                                        <th className="p-space-md w-10">
+                                            <CheckboxInput label="이 페이지 전체 선택" isLabelHidden size="sm" value={allSelected ? true : selectedRows.length > 0 ? 'indeterminate' : false} onChange={toggleAll} />
+                                        </th>
+                                    )}
                                     <th className="p-space-md">주문번호 / 일시</th>
                                     <th className="p-space-md">상품명 / 옵션</th>
                                     <th className="p-space-md text-center">수량</th>
                                     <th className="p-space-md">수령인 / 연락처</th>
                                     <th className="p-space-md text-center">배송상태</th>
-                                    <th className="p-space-md">송장등록 입력</th>
+                                    <th className="p-space-md">{canceledTab ? '취소 사유 / 시각' : '송장등록 입력'}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-surface-variant text-body-md text-on-surface">
-                                {rows.map((delivery) => (
-                                    // 행 안의 입력값·오류 상태를 상태나 송장 정보가 바뀌면 새로 시작하도록 key 에 포함한다.
-                                    <DeliveryRow key={`${delivery.deliveryId}-${delivery.status}-${delivery.carrier ?? ''}-${delivery.trackingNumber ?? ''}`} delivery={delivery} />
-                                ))}
+                                {rows.map((delivery) =>
+                                    canceledTab ? (
+                                        <CanceledRow key={delivery.deliveryId} delivery={delivery} />
+                                    ) : (
+                                        // 행 안의 입력값·오류 상태를 상태나 송장 정보가 바뀌면 새로 시작하도록 key 에 포함한다.
+                                        <DeliveryRow
+                                            key={`${delivery.deliveryId}-${delivery.status}-${delivery.carrier ?? ''}-${delivery.trackingNumber ?? ''}`}
+                                            delivery={delivery}
+                                            selectable={selectable}
+                                            selected={delivery.deliveryId !== undefined && selectedIds.includes(delivery.deliveryId)}
+                                            onToggle={() => delivery.deliveryId !== undefined && toggle(delivery.deliveryId)}
+                                            onCancel={() => setCancelTargets([delivery])}
+                                        />
+                                    ),
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -272,6 +384,7 @@ export default function ShippingList() {
                     </div>
                 </div>
             </Card>
+            {cancelTargets && <CancelDeliveryDialog deliveries={cancelTargets} onClose={() => setCancelTargets(null)} onSettled={onCancelSettled} />}
         </>
     );
 }

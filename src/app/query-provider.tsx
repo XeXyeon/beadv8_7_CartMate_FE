@@ -12,7 +12,8 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
     // 요청마다 새 클라이언트가 생기지 않도록 컴포넌트 수명 동안 하나만 만든다.
     const [queryClient] = useState(() => {
-        // 로그인 상태에서 401이 오면 토큰(30분)이 만료된 것이다. BE에 갱신 API가 없으므로 다시 로그인시킨다.
+        // 요청이 401을 받으면 http()가 /api/auth/refresh로 한 번 재발급을 시도하고, 그래도 401이면 여기로 온다.
+        // 재발급까지 실패한 것이므로(리프레시 토큰 만료 · 로그아웃됨) 다시 로그인시킨다.
         const handleError = (error: Error, meta?: Record<string, unknown>) => {
             if (meta?.skipAuthExpired) return;
             if (!(error instanceof ApiError) || error.status !== 401 || !hasCurrentUser(client)) return;

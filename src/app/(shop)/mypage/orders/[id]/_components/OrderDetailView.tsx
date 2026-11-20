@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Badge, Button, Card, EmptyState, Heading, type BadgeVariant } from '@astryxdesign/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,26 +8,38 @@ import { getGetDashboardQueryKey } from '@/api/generated/individual-group-purcha
 import type { OrderDetailResponse, RsDataOrderDetailResponse } from '@/api/generated/model';
 import { getGetDetailQueryKey, getGetMyListQueryKey, useCancel, useGetDetail } from '@/api/generated/order-controller/order-controller';
 import { getPreviewQueryKey } from '@/api/generated/order-controller/order-controller';
+import { getGetDeliveriesByOrderQueryKey } from '@/api/generated/delivery-controller/delivery-controller';
+import { getGetByOrderQueryKey, useGetByOrder } from '@/api/generated/payment-controller/payment-controller';
+import { getGetMyWalletQueryKey } from '@/api/generated/wallet-controller/wallet-controller';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { ORDER_CANCEL_MESSAGE, partialCancelTitle } from '@/lib/cancelReason';
 import { formatDateTime, parseKst } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
-import { CANCEL_REASON_LABEL, errorStatus, hasCode, KIND_LABEL, ORDER_STATUS } from '../../_lib/orderView';
+import { errorStatus, hasCode, KIND_LABEL, ORDER_STATUS } from '../../_lib/orderView';
 import OrderDeliveries, { summarizeDeliveries, useOrderDeliveries } from './OrderDeliveries';
+import OrderItems from './OrderItems';
 
 const CARD = 'bg-surface-container-lowest border border-outline-variant rounded p-space-md';
 const CARD_TITLE = 'font-label-md text-label-md text-on-surface font-bold mb-space-md';
-const OUTLINE_BUTTON =
-    'h-10 px-space-md border border-outline-variant bg-surface-container-lowest hover:bg-surface-container font-label-md text-label-md text-on-surface rounded inline-flex items-center justify-center gap-space-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-surface-container-lowest';
 const TONE_VARIANT: Record<'pending' | 'done' | 'muted', BadgeVariant> = { pending: 'warning', done: 'success', muted: 'neutral' };
+// 취소 요청 · 환불 처리를 기다리는 동안 다시 받는 간격
+const CANCEL_POLL_MS = 3000;
 
 // 개인 주문(일반 · 개인물품 공구) 상세. 공동물품 공구 주문은 목록에서 공동구매 결과 화면으로 바로 보낸다.
 export default function OrderDetailView() {
     const params = useParams<{ id: string }>();
     const orderId = Number(params.id);
     const validId = Number.isInteger(orderId) && orderId > 0;
-    const query = useGetDetail(orderId, { query: { enabled: validId, retry: (count, error) => errorStatus(error) === undefined && count < 2 } });
+    const query = useGetDetail(orderId, {
+        query: {
+            enabled: validId,
+            retry: (count, error) => errorStatus(error) === undefined && count < 2,
+            // 결제 완료 주문의 상품 취소는 배송 서버 판정을 거쳐 비동기로 끝난다. 처리 중인 상품이 있으면 결과가 날 때까지 다시 받는다.
+            refetchInterval: (q) => (q.state.data?.data?.items?.some((item) => item.cancelInProgress) ? CANCEL_POLL_MS : false),
+        },
+    });
     const order = query.data?.data;
 
     if (!validId) return <DetailNotice icon="search_off" title="주문을 찾을 수 없습니다" message="주소가 올바른지 확인해주세요." />;
@@ -51,6 +63,10 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
     const kind = order.orderType === 'INDIVIDUAL_GROUP' ? 'INDIVIDUAL_GROUP' : 'PERSONAL';
     const items = order.items ?? [];
     const itemsTotal = items.reduce((sum, item) => sum + (item.amount ?? (item.unitPrice ?? 0) * (item.quantity ?? 0)), 0);
+    // 판매글 내림·판매자 사유 취소로 일부 상품만 취소된 주문. 주문 상태는 결제 완료 그대로라 항목을 보고 판단한다.
+    const canceledItems = items.filter((item) => item.canceledAt);
+    const partiallyCanceled = order.status === 'PAID' && canceledItems.length > 0;
+    useRefreshOnCancelChange(order, orderId);
 
     return (
         <div className="flex flex-col gap-space-lg">
@@ -58,44 +74,23 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
             <Card padding={4} className="flex flex-col gap-space-md">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
                     <div className="flex flex-wrap items-center gap-space-sm">
-                        <Heading level={1}>주문 {order.orderNumber}</Heading>
+                        <Heading level={2}>주문 {order.orderNumber}</Heading>
                         <Badge label={KIND_LABEL[kind]} variant={kind === 'INDIVIDUAL_GROUP' ? 'purple' : 'neutral'} />
                         <Badge label={status.label} variant={TONE_VARIANT[status.tone]} />
+                        {partiallyCanceled && <Badge label="일부 취소" variant="warning" />}
                     </div>
                     <div className="font-body-sm text-body-sm text-on-surface-variant">주문일시 {formatDateTime(order.createdAt)}</div>
                 </div>
                 <OrderSteps order={order} orderId={orderId} />
             </Card>
 
-            <OrderStatusPanel order={order} orderId={orderId} />
+            <OrderStatusPanel order={order} orderId={orderId} canceledReasons={partiallyCanceled ? canceledItems.map((item) => item.cancelReason) : []} />
 
             {/* 결제가 끝난 주문만 배송이 생긴다 */}
             {order.paidAt && <OrderDeliveries orderId={orderId} />}
 
-            {/* 주문 상품 */}
-            <section className={CARD} aria-label="주문 상품">
-                <Heading level={2} className={CARD_TITLE}>주문 상품 {items.length}건</Heading>
-                {items.length === 0 ? (
-                    <p className="font-body-sm text-body-sm text-on-surface-variant">상품 정보가 없습니다.</p>
-                ) : (
-                    <ul className="flex flex-col divide-y divide-surface-container">
-                        {items.map((item) => (
-                            <li key={item.itemId} className="py-space-sm flex items-center justify-between gap-space-md">
-                                <div className="min-w-0">
-                                    <div className="font-body-md text-body-md text-on-surface font-bold truncate">{item.productName}</div>
-                                    <div className="font-caption text-caption text-on-surface-variant mt-0.5">
-                                        {item.optionName && `옵션: ${item.optionName} · `}
-                                        {formatPrice(item.unitPrice ?? 0)} × {item.quantity}개
-                                    </div>
-                                </div>
-                                <span className="font-label-md text-label-md text-on-surface font-bold shrink-0">
-                                    {formatPrice(item.amount ?? (item.unitPrice ?? 0) * (item.quantity ?? 0))}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </section>
+            {/* 주문 상품 (결제 완료 주문은 여기서 상품을 골라 취소한다) */}
+            <OrderItems order={order} orderId={orderId} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
                 {/* 배송지 */}
@@ -134,6 +129,7 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
                         <dd className="pt-space-xs mt-space-xs border-t border-surface-container font-headline-sm text-headline-sm text-primary font-bold text-right">
                             {formatPrice(order.totalAmount ?? 0)}
                         </dd>
+                        {order.paidAt && (canceledItems.length > 0 || order.status === 'CANCELED') && <RefundRow orderId={orderId} />}
                     </dl>
                 </section>
             </div>
@@ -146,6 +142,47 @@ function OrderDetail({ order, orderId }: { order: OrderDetailResponse; orderId: 
             </div>
         </div>
     );
+}
+
+// 실제로 돌려준 금액은 결제 서버가 안다. 주문 서버가 계산한 금액과 다를 수 있어 결제 내역에서 읽는다.
+// 취소 이벤트가 아직 처리되지 않았으면 0이라 "환불 진행 중"으로 보여 준다.
+function RefundRow({ orderId }: { orderId: number }) {
+    const payment = useGetByOrder(orderId, {
+        query: { refetchInterval: (q) => ((q.state.data?.data?.refundedAmount ?? 0) > 0 ? false : CANCEL_POLL_MS) },
+    });
+    const refunded = payment.data?.data?.refundedAmount ?? 0;
+    // 환불이 반영되면 헤더 · 예치금 화면의 잔액도 새로 받는다.
+    const queryClient = useQueryClient();
+    useEffect(() => {
+        if (refunded > 0) void queryClient.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
+    }, [refunded, queryClient]);
+    const text = payment.isPending ? '확인 중' : payment.isError ? '예치금 내역에서 확인' : refunded > 0 ? `-${formatPrice(refunded)}` : '환불 진행 중';
+    return (
+        <>
+            <dt className="text-outline">환불 금액</dt>
+            <dd className={`text-right font-bold ${refunded > 0 ? 'text-primary' : 'text-on-surface-variant'}`} data-refunded-amount={refunded}>
+                {text}
+            </dd>
+        </>
+    );
+}
+
+// 주문 상태나 상품 취소 상황이 바뀌면 같은 화면의 배송 · 결제 정보도 새로 받는다.
+// (상품 취소가 확정되면 배송 상품이 취소 표시되거나 배송이 취소되고, 환불이 생긴다)
+function useRefreshOnCancelChange(order: OrderDetailResponse, orderId: number) {
+    const queryClient = useQueryClient();
+    const items = order.items ?? [];
+    const signature = `${order.status}:${items.filter((item) => item.canceledAt).length}:${items.filter((item) => item.cancelInProgress).length}`;
+    const previous = useRef(signature);
+    useEffect(() => {
+        if (previous.current === signature) return;
+        previous.current = signature;
+        void queryClient.invalidateQueries({ queryKey: getGetDeliveriesByOrderQueryKey({ orderId, purchaseType: 'INDIVIDUAL_GROUP' }) });
+        // 배송 카드마다 배송 상세(/api/deliveries/{id})를 따로 받는다.
+        void queryClient.invalidateQueries({ predicate: (query) => String(query.queryKey[0]).startsWith('/api/deliveries/') });
+        void queryClient.invalidateQueries({ queryKey: getGetByOrderQueryKey(orderId) });
+        void queryClient.invalidateQueries({ queryKey: getGetMyListQueryKey() });
+    }, [signature, orderId, queryClient]);
 }
 
 type StepState = 'done' | 'current' | 'todo' | 'canceled';
@@ -191,8 +228,9 @@ function OrderSteps({ order, orderId }: { order: OrderDetailResponse; orderId: n
     );
 }
 
-// 상태별 안내와 할 수 있는 일(결제 · 취소). 결제 완료 주문 취소는 BE에 자동 환불이 없어 막는다.
-function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orderId: number }) {
+// 상태별 안내와 할 수 있는 일. 결제 대기 주문은 여기서 주문 전체를 바로 취소한다.
+// 결제 완료 주문의 취소는 주문 상품 목록에서 상품을 골라 한다(OrderItems).
+function OrderStatusPanel({ order, orderId, canceledReasons }: { order: OrderDetailResponse; orderId: number; canceledReasons: (string | undefined)[] }) {
     const queryClient = useQueryClient();
     // 결제 기한 지남 판단 기준 시각. 화면에 들어온 시점으로 고정한다(지나면 BE 스케줄러가 곧 자동 취소).
     const [now] = useState(Date.now);
@@ -223,7 +261,7 @@ function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orde
                 <Icon name="cancel" className="text-[22px] text-outline mt-0.5" />
                 <div className="font-body-sm text-body-sm">
                     <div className="font-bold text-on-surface">취소된 주문입니다 · {formatDateTime(order.canceledAt)}</div>
-                    <p className="text-on-surface-variant mt-0.5">{CANCEL_REASON_LABEL[order.cancelReason ?? ''] ?? '주문이 취소되었습니다.'}</p>
+                    <p className="text-on-surface-variant mt-0.5">{ORDER_CANCEL_MESSAGE[order.cancelReason ?? ''] ?? '주문이 취소되었습니다.'}</p>
                 </div>
             </Card>
         );
@@ -232,6 +270,7 @@ function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orde
     const pending = order.status === 'PAYMENT_PENDING';
     const expired = pending && (parseKst(order.paymentDeadlineAt)?.getTime() ?? Infinity) <= now;
     const busy = cancel.isPending;
+    const inProgress = (order.items ?? []).some((item) => item.cancelInProgress);
 
     const onCancel = () => {
         if (busy) return;
@@ -253,12 +292,24 @@ function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orde
                         </p>
                     </div>
                 </div>
+            ) : canceledReasons.length > 0 ? (
+                <div className="flex items-start gap-space-sm font-body-sm text-body-sm">
+                    <Icon name="info" className="text-[22px] text-primary mt-0.5" />
+                    <div>
+                        <div className="font-bold text-on-surface">{partialCancelTitle(canceledReasons)}</div>
+                        <p className="text-on-surface-variant mt-0.5">취소된 상품 금액은 예치금으로 환불됩니다. 나머지 상품은 그대로 배송됩니다.</p>
+                    </div>
+                </div>
             ) : (
                 <div className="flex items-start gap-space-sm font-body-sm text-body-sm">
                     <Icon name="task_alt" className="text-[22px] text-primary mt-0.5" />
                     <div>
                         <div className="font-bold text-on-surface">결제가 완료된 주문입니다</div>
-                        <p className="text-on-surface-variant mt-0.5">배송 현황과 구매 확정은 아래 배송 조회에서 확인하세요. 결제 완료 주문의 취소 · 환불은 준비 중입니다.</p>
+                        <p className="text-on-surface-variant mt-0.5">
+                            {inProgress
+                                ? '취소 요청을 처리하고 있습니다. 결과는 아래 주문 상품에 상품마다 표시되고, 이 화면은 자동으로 바뀝니다.'
+                                : '판매자가 배송 준비를 시작하기 전까지는 아래 주문 상품에서 상품을 골라 취소할 수 있습니다.'}
+                        </p>
                     </div>
                 </div>
             )}
@@ -271,25 +322,14 @@ function OrderStatusPanel({ order, orderId }: { order: OrderDetailResponse; orde
                 </p>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-space-sm">
-                {pending ? (
-                    <>
-                        {!expired && (
-                            <Button label={`${formatPrice(order.totalAmount ?? 0)} 결제하기`} variant="primary" className="flex-1" href={`${ROUTES.checkout}?order=${orderId}`} icon={<Icon name="account_balance_wallet" className="text-[18px]" />} />
-                        )}
-                        <button className={`${OUTLINE_BUTTON} flex-1`} type="button" disabled={busy} onClick={onCancel}>
-                            {busy ? '취소하는 중...' : '주문 취소'}
-                        </button>
-                    </>
-                ) : (
-                    <>
-                        {/* BE가 결제 완료 주문 취소 시 예치금을 자동 환불하지 않아(BE ISS-2) 환불 연동 전까지 막는다 */}
-                        <button className={`${OUTLINE_BUTTON} flex-1`} type="button" disabled title="결제 완료 주문 취소 · 환불은 준비 중입니다">
-                            주문 취소 (준비 중)
-                        </button>
-                    </>
-                )}
-            </div>
+            {pending && (
+                <div className="flex flex-col sm:flex-row gap-space-sm">
+                    {!expired && (
+                        <Button label={`${formatPrice(order.totalAmount ?? 0)} 결제하기`} variant="primary" className="flex-1" href={`${ROUTES.checkout}?order=${orderId}`} icon={<Icon name="account_balance_wallet" className="text-[18px]" />} />
+                    )}
+                    <Button label="주문 취소" variant="secondary" className="flex-1" isLoading={busy} onClick={onCancel} />
+                </div>
+            )}
         </section>
     );
 }

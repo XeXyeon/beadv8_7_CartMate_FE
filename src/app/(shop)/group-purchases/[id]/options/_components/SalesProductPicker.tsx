@@ -10,18 +10,20 @@ import ItemThumb from '../../../_components/ItemThumb';
 
 const PAGE_SIZE = 5;
 
-// 담을 상품. 공동물품은 inventoryId로 담는데, BE는 지금 상품 id를 그대로 inventoryId로 쓴다.
-export type PickedProduct = { inventoryId: number; name: string; postTitle: string; price: number | null; imageUrl: string | null };
+// 고른 상품. 담을 재고(inventoryId)는 판매글 상세의 옵션으로 정하므로 판매글 id를 함께 넘긴다.
+export type PickedProduct = { postId: number; productId: number; name: string; postTitle: string; price: number | null; imageUrl: string | null };
 
 type PickerProps = {
-    selectedId: number | null;
-    // 이미 공동 장바구니에 있는 상품(다시 담으면 BE가 수량을 더한다)
+    selectedId: number | null; // 고른 상품 id
+    // 이미 공동 장바구니에 있는 상품 id(같은 옵션을 다시 담으면 BE가 수량을 더한다)
     inCartIds: ReadonlySet<number>;
+    // 마감 보류 중 만든 사람처럼 담을 수는 없고 옵션만 바꿀 수 있으면 담긴 상품만 고를 수 있다
+    inCartOnly?: boolean;
     onSelect: (product: PickedProduct) => void;
 };
 
 // 판매글 목록을 페이지로 넘기며 판매글 안의 상품을 하나 고른다.
-export default function SalesProductPicker({ selectedId, inCartIds, onSelect }: PickerProps) {
+export default function SalesProductPicker({ selectedId, inCartIds, inCartOnly = false, onSelect }: PickerProps) {
     const [page, setPage] = useState(0);
     const query = useSelectSalesPostAll({ page, size: PAGE_SIZE }, { query: { placeholderData: keepPreviousData } });
     const data = query.data?.data;
@@ -53,13 +55,15 @@ export default function SalesProductPicker({ selectedId, inCartIds, onSelect }: 
             <ul className="flex flex-col gap-space-sm">
                 {posts.map((post) => {
                     const postOnSale = post.status === 'ON_SALE';
+                    const postId = post.id;
                     const products = (post.productList ?? []).map(toProductOption).filter((p) => p !== null);
+                    if (postId === undefined) return null;
                     return (
                         <li key={post.id} className="border border-outline-variant bg-surface-container-lowest rounded overflow-hidden">
                             <div className="px-space-md py-space-xs bg-surface-container-low font-label-sm text-label-sm text-on-surface-variant truncate">{post.title}</div>
                             <ul className="divide-y divide-surface-container">
                                 {products.map((product) => {
-                                    const sellable = postOnSale && product.onSale;
+                                    const sellable = postOnSale && product.onSale && (!inCartOnly || inCartIds.has(product.id));
                                     const selected = selectedId === product.id;
                                     const inCart = inCartIds.has(product.id);
                                     return (
@@ -83,7 +87,8 @@ export default function SalesProductPicker({ selectedId, inCartIds, onSelect }: 
                                                 disabled={!sellable}
                                                 onClick={() =>
                                                     onSelect({
-                                                        inventoryId: product.id,
+                                                        postId,
+                                                        productId: product.id,
                                                         name: product.name,
                                                         postTitle: post.title ?? '',
                                                         price: product.price,
@@ -92,7 +97,7 @@ export default function SalesProductPicker({ selectedId, inCartIds, onSelect }: 
                                                 }
                                             >
                                                 {selected && <Icon name="check" className="text-[16px]" />}
-                                                {!sellable ? '판매 중지' : selected ? '선택됨' : '선택'}
+                                                {!(postOnSale && product.onSale) ? '판매 중지' : !sellable ? '담기 불가' : selected ? '선택됨' : '선택'}
                                             </button>
                                         </li>
                                     );

@@ -11,8 +11,10 @@ import {
     useRequestWithdrawal,
 } from '@/api/generated/member-withdrawal-controller/member-withdrawal-controller';
 import { useGetMyWallet } from '@/api/generated/wallet-controller/wallet-controller';
-import { errorMessage } from '@/api/http';
+import type { WithdrawalBlocker } from '@/api/generated/model';
+import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { useLogout } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 
@@ -26,13 +28,21 @@ const BLOCKER_LINK: Record<string, { href: string; label: string }> = {
     SELLER_UNCONFIRMED_SALES: { href: ROUTES.sellerShipping, label: '배송 관리' },
     SELLER_CLAIMS_IN_PROGRESS: { href: ROUTES.sellerClaims, label: '클레임 관리' },
     SELLER_PENDING_PAYOUTS: { href: ROUTES.sellerSettlements, label: '정산 관리' },
+    WALLET_BALANCE_REMAINING: { href: ROUTES.deposit, label: '예치금' },
 };
+
+// 예치금은 count가 건수가 아니라 잔액(원)이고, 금액은 서버 메시지에 이미 들어 있다
+const COUNTLESS_BLOCKERS = new Set(['WALLET_BALANCE_REMAINING']);
+
+// 확정과 겹쳐 취소가 실패한 경우 (계정이 이미 지워짐)
+const ALREADY_FINALIZED = '409-MEMBER_WITHDRAWAL_ALREADY_FINALIZED';
 
 const won = (n?: number) => `₩${(n ?? 0).toLocaleString('ko-KR')}`;
 
 // 회원 탈퇴: 가능 여부(막는 이유) → 비밀번호 확인 후 신청 → 30일 탈퇴 대기(취소 가능)
 export default function WithdrawalSection() {
     const queryClient = useQueryClient();
+    const { logout } = useLogout();
     const check = useCheckWithdrawal({ query: { staleTime: 0 } });
     const wallet = useGetMyWallet();
     const info = check.data?.data;
@@ -66,7 +76,11 @@ export default function WithdrawalSection() {
     const cancel = useCancelWithdrawal({
         mutation: {
             onSuccess: () => refresh(),
-            onError: (e) => alert(errorMessage(e, '탈퇴를 취소하지 못했습니다.')),
+            onError: (e) => {
+                alert(errorMessage(e, '탈퇴를 취소하지 못했습니다.'));
+                // 새벽 탈퇴 확정과 겹친 경우: 계정이 이미 지워졌으니 로그아웃
+                if (e instanceof ApiError && e.resultCode === ALREADY_FINALIZED) logout();
+            },
         },
     });
 
@@ -98,12 +112,16 @@ export default function WithdrawalSection() {
                             <span>대기 중에는 조회만 할 수 있고 주문·정보 수정은 할 수 없습니다. 탈퇴를 취소하면 다시 이용할 수 있습니다.</span>
                             {balance > 0 && (
                                 <span>
-                                    남은 예치금 <strong className="text-on-surface">{won(balance)}</strong>은 탈퇴 확정 전에 환급 계좌를 등록하면 돌려받을 수 있습니다.
-                                    등록하지 않으면 탈퇴 확정 시 소멸됩니다. (환급 신청은 곧 열립니다)
+                                    남은 예치금 <strong className="text-on-surface">{won(balance)}</strong>을 환급받아야 탈퇴가 확정됩니다.
+                                    탈퇴 대기 중에도 환급 신청은 할 수 있습니다.
                                 </span>
                             )}
                         </div>
                     </div>
+                    {/* 확정 예정일이 지났는데 진행 중 거래·예치금이 남아 있으면 서버가 이유를 준다 */}
+                    {blockers.length > 0 && (
+                        <BlockerList title="아래 항목이 남아 있어 탈퇴 확정이 보류되었습니다. 정리되면 다음 날 새벽에 확정됩니다." blockers={blockers} />
+                    )}
                     <div className="flex justify-end">
                         <Button label="탈퇴 취소" variant="secondary" type="button" isLoading={cancel.isPending} isDisabled={cancel.isPending} onClick={() => {
                             if (confirm('탈퇴를 취소할까요? 판매를 중지했던 판매글은 판매자 센터에서 직접 다시 판매해야 합니다.')) cancel.mutate();
@@ -113,31 +131,7 @@ export default function WithdrawalSection() {
             ) : (
                 /* 신청 전 */
                 <div className="flex flex-col gap-space-md">
-                    {blockers.length > 0 && (
-                        <div className="bg-error-container/20 border border-error/30 rounded p-space-md flex items-start gap-space-md">
-                            <Icon name="block" className="text-error text-[24px]" />
-                            <div className="flex flex-col gap-space-xs flex-1">
-                                <span className="font-label-sm text-label-sm text-error font-bold">아래 거래가 끝나야 탈퇴할 수 있습니다.</span>
-                                <ul className="flex flex-col gap-1 font-body-sm text-body-sm text-on-surface-variant">
-                                    {blockers.map((b) => {
-                                        const link = BLOCKER_LINK[b.code ?? ''];
-                                        return (
-                                            <li key={b.code} className="flex items-center justify-between gap-space-sm">
-                                                <span>
-                                                    · {b.message} <strong className="text-on-surface">{b.count}건</strong>
-                                                </span>
-                                                {link && (
-                                                    <Link href={link.href} className="font-label-sm text-label-sm text-primary underline shrink-0">
-                                                        {link.label}
-                                                    </Link>
-                                                )}
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            </div>
-                        </div>
-                    )}
+                    {blockers.length > 0 && <BlockerList title="아래 거래가 끝나야 탈퇴할 수 있습니다." blockers={blockers} />}
                     <div className="flex flex-wrap items-center justify-between gap-space-md">
                         <div className="flex items-center gap-space-xs font-caption text-caption text-outline">
                             <Icon name="info" className="text-[16px]" />
@@ -176,12 +170,6 @@ export default function WithdrawalSection() {
                             <li>· 대기 기간에는 조회만 할 수 있고 주문·정보 수정은 할 수 없습니다.</li>
                             <li>· 판매자라면 판매 중인 판매글이 <strong className="text-on-surface">바로 판매 중지</strong>되고, 탈퇴 확정 시 삭제됩니다.</li>
                             <li>· 탈퇴가 확정되면 개인정보는 지워지고, 거래 기록은 법령에 따라 보관됩니다.</li>
-                            {balance > 0 && (
-                                <li>
-                                    · 남은 예치금 <strong className="text-on-surface">{won(balance)}</strong>은 대기 기간에 환급 계좌를 등록해야 돌려받을 수 있으며,
-                                    등록하지 않으면 탈퇴 확정 시 소멸됩니다.
-                                </li>
-                            )}
                         </ul>
 
                         <label className="flex flex-col gap-space-xs font-label-md text-label-md">
@@ -209,5 +197,40 @@ export default function WithdrawalSection() {
                 </div>
             )}
         </Card>
+    );
+}
+
+// 탈퇴를 막는 이유 목록 (신청 전: 신청 불가 이유, 대기 중: 확정 보류 이유)
+function BlockerList({ title, blockers }: { title: string; blockers: WithdrawalBlocker[] }) {
+    return (
+        <div className="bg-error-container/20 border border-error/30 rounded p-space-md flex items-start gap-space-md">
+            <Icon name="block" className="text-error text-[24px]" />
+            <div className="flex flex-col gap-space-xs flex-1">
+                <span className="font-label-sm text-label-sm text-error font-bold">{title}</span>
+                <ul className="flex flex-col gap-1 font-body-sm text-body-sm text-on-surface-variant">
+                    {blockers.map((b) => {
+                        const link = BLOCKER_LINK[b.code ?? ''];
+                        return (
+                            <li key={b.code} className="flex items-center justify-between gap-space-sm">
+                                <span>
+                                    · {b.message}
+                                    {!COUNTLESS_BLOCKERS.has(b.code ?? '') && (
+                                        <>
+                                            {' '}
+                                            <strong className="text-on-surface">{b.count}건</strong>
+                                        </>
+                                    )}
+                                </span>
+                                {link && (
+                                    <Link href={link.href} className="font-label-sm text-label-sm text-primary underline shrink-0">
+                                        {link.label}
+                                    </Link>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
+            </div>
+        </div>
     );
 }

@@ -12,6 +12,7 @@ const TABS: { status: ShippingStatus; label: string }[] = [
     { status: GetSellerDeliveriesStatus.PREPARING, label: '배송 준비' },
     { status: GetSellerDeliveriesStatus.SHIPPING, label: '배송 중' },
     { status: GetSellerDeliveriesStatus.DELIVERED, label: '배송 완료' },
+    { status: GetSellerDeliveriesStatus.CANCELED, label: '배송 취소' },
 ];
 
 // URL 의 status 를 읽는다. 없거나 탭에 없는 값이면 배송 요청이다.

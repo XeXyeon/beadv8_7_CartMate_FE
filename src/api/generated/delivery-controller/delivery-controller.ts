@@ -25,6 +25,7 @@ import type {
 
 import type {
   DeliveryReadyRequest,
+  DeliverySellerCancelRequest,
   GetDeliveriesByOrderParams,
   GetMyDeliveriesParams,
   GetSellerDeliveriesParams,
@@ -686,3 +687,85 @@ export function useGetDeliveriesByOrder<TData = Awaited<ReturnType<typeof getDel
 
 
 
+export const getCancelDeliveryUrl = (deliveryId: number,) => {
+
+
+
+
+  return `/api/deliveries/${deliveryId}/cancel`
+}
+
+export const cancelDelivery = async (deliveryId: number,
+    deliverySellerCancelRequest: DeliverySellerCancelRequest, options?: Parameters<typeof http>[1]): Promise<RsDataDeliveryResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return http<RsDataDeliveryResponse>(getCancelDeliveryUrl(deliveryId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deliverySellerCancelRequest)
+  }
+);}
+
+
+
+
+
+export const getCancelDeliveryMutationKey = () => ['cancelDelivery'] as const;
+
+export const getCancelDeliveryMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelDelivery>>, TError,CancelDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelDelivery>>, TError,CancelDeliveryMutationVariables, TContext> => {
+
+const mutationKey = getCancelDeliveryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelDelivery>>, CancelDeliveryMutationVariables> = (props) => {
+          const {deliveryId,data} = props ?? {};
+
+          return  cancelDelivery(deliveryId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelDeliveryMutationResult = NonNullable<Awaited<ReturnType<typeof cancelDelivery>>>
+    export type CancelDeliveryMutationBody = DeliverySellerCancelRequest
+    export type CancelDeliveryMutationError = unknown
+    export type CancelDeliveryMutationVariables = {deliveryId: number;data: DeliverySellerCancelRequest}
+
+    export const useCancelDelivery = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelDelivery>>, TError,CancelDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelDelivery>>,
+        TError,
+        CancelDeliveryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelDeliveryMutationOptions(options), queryClient);
+    }

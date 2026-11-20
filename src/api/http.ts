@@ -41,7 +41,9 @@ export function refreshOnce(): Promise<boolean> {
 }
 
 // 로그인·재발급·로그아웃 요청은 401이어도 재발급하지 않는다 (무한 반복 방지)
-export const isAuthPath = (url: string) => url.startsWith('/api/auth/');
+// 신뢰 기기 관리는 기기 쿠키 때문에 /api/auth 아래에 있지만 로그인이 필요한 API라 재발급 대상이다
+export const isAuthPath = (url: string) =>
+    url.startsWith('/api/auth/') && !url.startsWith('/api/auth/trusted-devices');
 
 export async function http<T>(url: string, options: RequestInit = {}, retried = false): Promise<T> {
     const isBrowser = typeof window !== 'undefined';

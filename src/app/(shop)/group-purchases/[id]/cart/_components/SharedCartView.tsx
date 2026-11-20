@@ -25,13 +25,15 @@ function CartContent({ id, purchase, remainingMs, deadlinePassed }: SharedDetail
     const items = purchase.items ?? [];
     const permissions = itemPermissions(purchase, deadlinePassed);
     const editableNow = purchase.editable === true && !deadlinePassed;
-    const { changeQuantity, remove } = useSharedItemMutations(id);
+    const { changeQuantity, adjustQuantity, remove } = useSharedItemMutations(id);
     // 어느 품목에서 난 실패인지 함께 기억해 그 품목 아래에 보여 준다.
     // 다른 참여자가 먼저 뺀 품목이면 다시 받은 목록에 행이 없으므로 목록 위에 상품명과 함께 보여 준다.
     const [failure, setFailure] = useState<{ itemId: number; name: string; message: string } | null>(null);
     const busyItemId = changeQuantity.isPending
         ? changeQuantity.variables?.itemId
-        : remove.isPending
+        : adjustQuantity.isPending
+          ? adjustQuantity.variables?.itemId
+          : remove.isPending
           ? remove.variables?.itemId
           : undefined;
 
@@ -49,6 +51,16 @@ function CartContent({ id, purchase, remainingMs, deadlinePassed }: SharedDetail
             },
         );
     };
+    // +/- 버튼: 화면의 수량이 낡았어도 BE가 지금 수량에 더하므로 다른 참여자의 변경을 덮어쓰지 않는다.
+    const onAdjust = (item: SharedGroupPurchaseDetailItemResponse, delta: number) => {
+        if (item.itemId === undefined) return;
+        const itemId = item.itemId;
+        setFailure(null);
+        adjustQuantity.mutate(
+            { id, itemId, data: { delta } },
+            { onError: (error) => setFailure({ itemId, name: itemName(item), message: errorMessage(error, '수량을 바꾸지 못했습니다.') }) },
+        );
+    };
     const onRemove = (item: SharedGroupPurchaseDetailItemResponse) => {
         if (item.itemId === undefined) return;
         if (!window.confirm(`'${itemName(item)}'을(를) 공동 장바구니에서 뺄까요?\n다른 참여자에게도 바로 반영됩니다.`)) return;
@@ -61,9 +73,9 @@ function CartContent({ id, purchase, remainingMs, deadlinePassed }: SharedDetail
     };
 
     const permissionNote = permissions.canChangeQuantity
-        ? '참여자 누구나 상품을 담고 수량을 바꾸거나 뺄 수 있습니다. 바꾼 내용은 모든 참여자에게 바로 보입니다.'
+        ? '참여자 누구나 상품을 담고 수량 · 옵션을 바꾸거나 뺄 수 있습니다. 바꾼 내용은 모든 참여자에게 바로 보입니다.'
         : permissions.canRemove
-          ? '마감 보류 중에는 만든 사람만 상품을 뺄 수 있습니다. 구매할 수 없는 상품을 빼면 마감할 수 있습니다.'
+          ? '마감 보류 중에는 만든 사람만 상품을 빼거나 옵션을 바꿀 수 있습니다. 구매할 수 없는 상품을 정리하면 마감할 수 있습니다.'
           : '수정이 마감되어 품목을 바꿀 수 없습니다.';
 
     return (
@@ -131,14 +143,16 @@ function CartContent({ id, purchase, remainingMs, deadlinePassed }: SharedDetail
                                 <SharedItemRow
                                     item={item}
                                     controls={
-                                        (permissions.canChangeQuantity || permissions.canRemove) && item.itemId !== undefined ? (
+                                        (permissions.canChangeQuantity || permissions.canRemove || permissions.canChangeOption) && item.itemId !== undefined ? (
                                             <ItemControls
                                                 item={item}
                                                 canChangeQuantity={permissions.canChangeQuantity && item.purchasable !== false}
                                                 canRemove={permissions.canRemove}
+                                                optionHref={permissions.canChangeOption ? ROUTES.groupPurchaseOptions(id) : undefined}
                                                 busy={busyItemId === item.itemId}
                                                 disabled={busyItemId !== undefined}
                                                 onQuantity={(quantity, onFail) => onQuantity(item, quantity, onFail)}
+                                                onAdjust={(delta) => onAdjust(item, delta)}
                                                 onRemove={() => onRemove(item)}
                                             />
                                         ) : undefined
@@ -174,13 +188,16 @@ type ItemControlsProps = {
     item: SharedGroupPurchaseDetailItemResponse;
     canChangeQuantity: boolean;
     canRemove: boolean;
+    // 옵션 변경은 판매글 상세가 있어야 고를 수 있어 상품 담기 화면에서 한다(품목 응답에 판매글 id가 없다).
+    optionHref?: string;
     busy: boolean;
     disabled: boolean;
     onQuantity: (quantity: number, onFail?: () => void) => void;
+    onAdjust: (delta: number) => void;
     onRemove: () => void;
 };
 
-function ItemControls({ item, canChangeQuantity, canRemove, busy, disabled, onQuantity, onRemove }: ItemControlsProps) {
+function ItemControls({ item, canChangeQuantity, canRemove, optionHref, busy, disabled, onQuantity, onAdjust, onRemove }: ItemControlsProps) {
     const quantity = item.quantity ?? 1;
     const name = itemName(item);
     const stepClass =
@@ -189,7 +206,7 @@ function ItemControls({ item, canChangeQuantity, canRemove, busy, disabled, onQu
         <div className="flex sm:flex-col items-center sm:items-end gap-space-sm shrink-0">
             {canChangeQuantity && (
                 <div className="flex items-center rounded-lg overflow-hidden shadow-sm" aria-busy={busy}>
-                    <button className={stepClass} type="button" aria-label={`${name} 수량 줄이기`} disabled={disabled || quantity <= 1} onClick={() => onQuantity(quantity - 1)}>
+                    <button className={stepClass} type="button" aria-label={`${name} 수량 줄이기`} disabled={disabled || quantity <= 1} onClick={() => onAdjust(-1)}>
                         <Icon name="remove" className="text-[16px]" />
                     </button>
                     <QuantityInput quantity={quantity} label={`${name} 수량`} disabled={disabled} onCommit={onQuantity} />
@@ -198,23 +215,23 @@ function ItemControls({ item, canChangeQuantity, canRemove, busy, disabled, onQu
                         type="button"
                         aria-label={`${name} 수량 늘리기`}
                         disabled={disabled || quantity >= MAX_QUANTITY}
-                        onClick={() => onQuantity(quantity + 1)}
+                        onClick={() => onAdjust(1)}
                     >
                         <Icon name="add" className="text-[16px]" />
                     </button>
                 </div>
             )}
             <div className="flex items-center gap-1">
-                {/* BE의 상품은 아직 옵션 없이 상품 하나가 곧 구매 단위(inventoryId = 상품 id)라 바꿀 옵션이 없다 */}
-                <button
-                    className="px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface-variant font-label-sm text-label-sm shadow-sm flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-60"
-                    type="button"
-                    disabled
-                    title="상품 옵션은 준비 중입니다."
-                >
-                    <Icon name="tune" className="text-[16px]" />
-                    옵션 변경 (준비 중)
-                </button>
+                {optionHref && (
+                    <Link
+                        className="px-3 py-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-variant text-on-surface-variant font-label-sm text-label-sm shadow-sm flex items-center gap-1"
+                        href={optionHref}
+                        title="상품 담기 화면에서 같은 상품을 고르면 옵션을 바꿀 수 있습니다."
+                    >
+                        <Icon name="tune" className="text-[16px]" />
+                        옵션 변경
+                    </Link>
+                )}
                 {canRemove && (
                     <button
                         className="px-2.5 py-1.5 rounded-lg bg-surface-container-lowest hover:bg-error-container text-error font-label-sm text-label-sm shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"

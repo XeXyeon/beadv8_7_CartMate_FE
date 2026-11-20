@@ -66,7 +66,7 @@ export function SellerTrustBadge({ trust }: { trust: SellerTrust }) {
     const style = STYLE[trust.level];
     return (
         <span title={style.description}>
-            <Badge variant={style.variant} icon={<Icon name={style.icon} />} label={`${style.label}${trust.score !== null ? ` · ${trust.score}점` : ''}`} />
+            <Badge variant={style.variant} icon={<Icon name={style.icon} className="text-[14px]" />} label={`${style.label}${trust.score !== null ? ` · ${trust.score}점` : ''}`} />
         </span>
     );
 }

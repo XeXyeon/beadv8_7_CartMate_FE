@@ -1,13 +1,23 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { useIsFetching, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Heading } from '@astryxdesign/core/Heading';
 import { getGetCartQueryKey } from '@/api/generated/cart-controller/cart-controller';
 import type { OrderDetailItemResponse, OrderDetailResponse } from '@/api/generated/model';
-import { getGetDetailQueryKey, getGetMyListQueryKey, getPreviewQueryKey, useGetDetail, usePayOrder, usePreview } from '@/api/generated/order-controller/order-controller';
+import { getGetMyCouponsQueryKey } from '@/api/generated/coupon-controller/coupon-controller';
+import {
+    getGetDetailQueryKey,
+    getGetMyListQueryKey,
+    getGetOrderCouponOptionsQueryKey,
+    getPreviewQueryKey,
+    useGetDetail,
+    usePayOrder,
+    usePreview,
+} from '@/api/generated/order-controller/order-controller';
 import { getGetByOrderQueryKey } from '@/api/generated/payment-controller/payment-controller';
 import {
     getGetMyWalletQueryKey,
@@ -16,18 +26,13 @@ import {
 } from '@/api/generated/wallet-controller/wallet-controller';
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
+import { ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
 import { formatDateTime } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
+import CouponSelect from './CouponSelect';
 import Notice from './Notice';
 import WalletPaymentSummary, { payErrorMessage } from './WalletPaymentSummary';
-
-const CANCEL_REASON_LABEL: Record<string, string> = {
-    BUYER_CANCELED: '주문을 취소했습니다.',
-    PAYMENT_EXPIRED: '결제 기한이 지나 자동으로 취소되었습니다.',
-    OUT_OF_STOCK: '재고가 부족해 취소되었습니다.',
-    SALES_STOPPED: '판매자가 판매를 중지해 주문이 취소되었습니다.',
-};
 
 // 접수된 주문(?order=주문id)을 상태별로 보여 준다. 결제 대기면 예치금 결제, 결제 완료면 결제 결과 화면이 된다.
 // 결과 화면을 따로 두지 않고 주문 상태로 나누므로 새로고침·뒤로 가기를 해도 지금 상태가 그대로 보인다.
@@ -45,14 +50,21 @@ export default function OrderStatus({ orderId }: { orderId: number }) {
 
 function OrderPayment({ orderId, order }: { orderId: number; order: OrderDetailResponse }) {
     const queryClient = useQueryClient();
+    // 고른 쿠폰(회원 쿠폰 ID). 결제할 때 함께 보내고, 미리보기도 이 쿠폰을 반영해 받는다.
+    const [couponId, setCouponId] = useState<number | null>(null);
     // 잔액은 다른 탭에서 바뀔 수 있어 화면에 들어올 때마다 새로 받는다.
-    const preview = usePreview(orderId, undefined, { query: { staleTime: 0 } });
+    // 쿠폰을 바꾸는 동안 금액이 비지 않도록 직전 미리보기를 잠깐 보여 준다.
+    const preview = usePreview(orderId, couponId === null ? undefined : { memberCouponId: couponId }, {
+        query: { staleTime: 0, placeholderData: keepPreviousData },
+    });
     const info = preview.data?.data;
+    const discount = info?.discountAmount ?? 0;
 
     const refreshOrder = () =>
         Promise.all([
             queryClient.invalidateQueries({ queryKey: getGetDetailQueryKey(orderId) }),
             queryClient.invalidateQueries({ queryKey: getPreviewQueryKey(orderId) }),
+            queryClient.invalidateQueries({ queryKey: getGetOrderCouponOptionsQueryKey(orderId) }),
         ]);
 
     const pay = usePayOrder({
@@ -65,6 +77,7 @@ function OrderPayment({ orderId, order }: { orderId: number; order: OrderDetailR
                     getGetMyWalletTransactionsQueryKey(),
                     getGetMyListQueryKey(),
                     getGetByOrderQueryKey(orderId),
+                    getGetMyCouponsQueryKey(),
                 ]) {
                     void queryClient.invalidateQueries({ queryKey });
                 }
@@ -85,7 +98,9 @@ function OrderPayment({ orderId, order }: { orderId: number; order: OrderDetailR
     const detailFetching = useIsFetching({ queryKey: getGetDetailQueryKey(orderId) }) > 0;
     const paidButNotShown = pay.isSuccess && !detailFetching;
     // 잔액 충분 여부는 안내(WalletPaymentSummary)와 같은 기준으로 판단한다.
-    const canPay = info?.payable === true && (info.walletBalance ?? 0) >= (info.amount ?? 0) && !busy;
+    // 쿠폰을 바꾸는 중(직전 미리보기를 보여 주는 중)이거나 고른 쿠폰의 미리보기가 실패했으면 결제하지 않는다.
+    const previewMatches = !preview.isPlaceholderData && !preview.isError && (info?.memberCouponId ?? null) === couponId;
+    const canPay = previewMatches && info?.payable === true && (info.walletBalance ?? 0) >= (info.amount ?? 0) && !busy;
 
     return (
         <StatusCard>
@@ -95,19 +110,35 @@ function OrderPayment({ orderId, order }: { orderId: number; order: OrderDetailR
                 <dd className="text-on-surface">{formatDateTime(order.paymentDeadlineAt)} 까지</dd>
             </OrderSummary>
 
+            <CouponSelect orderId={orderId} selected={couponId} onChange={setCouponId} disabled={busy} />
+
             <section className="border border-outline-variant p-space-md flex flex-col gap-space-sm" aria-label="예치금 결제">
                 <h3 className="font-label-md text-label-md text-primary font-bold">예치금 결제</h3>
                 {preview.isPending ? (
                     <div className="h-20 bg-surface-container-low animate-pulse" aria-hidden />
+                ) : preview.isError && couponId !== null ? (
+                    // 고른 쿠폰을 그 사이 쓸 수 없게 된 경우(다른 주문에 사용, 기간 만료 등)
+                    <div className="flex items-center justify-between gap-space-sm font-body-sm text-body-sm" role="alert">
+                        <span className="text-error">{errorMessage(preview.error, '이 쿠폰은 쓸 수 없습니다.')}</span>
+                        <Button label="쿠폰 빼기" size="sm" variant="secondary" onClick={() => setCouponId(null)} />
+                    </div>
                 ) : !info ? (
                     <div className="flex items-center justify-between gap-space-sm font-body-sm text-body-sm">
                         <span className="text-error">{errorMessage(preview.error, '결제 정보를 불러오지 못했습니다.')}</span>
                         <Button label="다시 시도" size="sm" variant="secondary" onClick={() => void preview.refetch()} />
                     </div>
                 ) : (
-                    <>
+                    <div className={preview.isPlaceholderData ? 'opacity-50 transition-opacity' : 'transition-opacity'}>
+                        {discount > 0 && (
+                            <dl className="grid grid-cols-[1fr_auto] gap-y-space-xs font-body-sm text-body-sm mb-space-xs">
+                                <dt className="text-on-surface-variant">주문 금액</dt>
+                                <dd className="text-on-surface text-right">{formatPrice(info.orderAmount ?? 0)}</dd>
+                                <dt className="text-on-surface-variant">쿠폰 할인</dt>
+                                <dd className="text-primary font-semibold text-right">-{formatPrice(discount)}</dd>
+                            </dl>
+                        )}
                         <WalletPaymentSummary amount={info.amount ?? 0} walletBalance={info.walletBalance ?? 0} payable={info.payable === true} />
-                    </>
+                    </div>
                 )}
             </section>
 
@@ -137,7 +168,7 @@ function OrderPayment({ orderId, order }: { orderId: number; order: OrderDetailR
                     isLoading={pay.isPending}
                     isDisabled={!canPay}
                     onClick={() => {
-                        if (canPay) pay.mutate({ orderId });
+                        if (canPay) pay.mutate({ orderId, data: couponId === null ? undefined : { memberCouponId: couponId } });
                     }}
                 />
                 <ContinueShopping />
@@ -218,7 +249,7 @@ function OrderCanceled({ order }: { order: OrderDetailResponse }) {
                 <dd className="text-on-surface">{formatDateTime(order.canceledAt)}</dd>
             </OrderSummary>
             {order.cancelReason && (
-                <p className="font-body-sm text-body-sm text-secondary">{CANCEL_REASON_LABEL[order.cancelReason] ?? '취소된 주문입니다.'}</p>
+                <p className="font-body-sm text-body-sm text-secondary">{ORDER_CANCEL_MESSAGE[order.cancelReason] ?? '취소된 주문입니다.'}</p>
             )}
             {/* 결제한 뒤 취소된 주문이면 환불 안내 (결제 전 취소는 나간 돈이 없음) */}
             {order.paidAt && (
