@@ -38,7 +38,7 @@ export default function SellerAccountContent() {
     // 비로그인이면 로그인 페이지로
     useEffect(() => {
         if (status === 401) {
-            router.replace(`${ROUTES.login}?redirect=${encodeURIComponent(ROUTES.sellerAccount)}`);
+            router.replace(`${ROUTES.login}?next=${encodeURIComponent(ROUTES.sellerAccount)}`);
         }
     }, [status, router]);
 

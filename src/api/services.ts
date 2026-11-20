@@ -52,10 +52,13 @@ export function apiRewrites(env: Env = process.env) {
         services[name].prefixes.map((prefix) => ({ prefix, base: serviceUrl(name, env) })),
     )
         .sort((a, b) => b.prefix.length - a.prefix.length)
-        .map(({ prefix, base }) => ({
-            source: `${prefix}/:path*`,
-            destination: `${base}${prefix}/:path*`,
-        }));
+        // 접두어 그대로인 경로(예: GET /api/notices?page=0)는 따로 넘긴다. `:path*` 규칙 하나로 받으면 Vercel 배포에서는
+        // 빈 :path* 앞의 슬래시가 남아 /api/notices/ 로 가고, BE(Spring)는 끝 슬래시 경로를 404로 돌려준다. (OPS-3)
+        // `next start` · `next dev`는 그 슬래시를 지워서 로컬에서는 드러나지 않는다.
+        .flatMap(({ prefix, base }) => [
+            { source: prefix, destination: `${base}${prefix}` },
+            { source: `${prefix}/:path*`, destination: `${base}${prefix}/:path*` },
+        ]);
 
     // 상품 이미지 경로는 API 접두어 밖에 있으므로 별도로 product-service에 전달한다.
     rules.push({ source: '/images/:path*', destination: `${serviceUrl('product', env)}/images/:path*` });

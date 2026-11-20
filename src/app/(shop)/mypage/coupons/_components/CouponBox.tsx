@@ -1,24 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Heading } from '@astryxdesign/core/Heading';
 import { Text } from '@astryxdesign/core/Text';
-import {
-    getGetDownloadableCouponsQueryKey,
-    getGetMyCouponsQueryKey,
-    useDownloadCoupon,
-    useGetDownloadableCoupons,
-    useGetMyCoupons,
-} from '@/api/generated/coupon-controller/coupon-controller';
-import type { DownloadableCouponResponse, MemberCouponResponse } from '@/api/generated/model';
+import { useGetMyCoupons } from '@/api/generated/coupon-controller/coupon-controller';
+import type { MemberCouponResponse } from '@/api/generated/model';
 import { errorMessage } from '@/api/http';
-import Icon from '@/components/ui/Icon';
-import { conditionLabel, discountLabel, MEMBER_COUPON_STATUS, usablePeriodLabel } from '@/lib/coupon';
+import DownloadableCoupons from '@/components/coupon/DownloadableCoupons';
+import { conditionLabel, discountLabel, MEMBER_COUPON_STATUS } from '@/lib/coupon';
 import { formatDateTime } from '@/lib/format';
 
 type Tab = 'usable' | 'done';
@@ -34,74 +27,11 @@ export default function CouponBox() {
 }
 
 function DownloadableSection() {
-    const queryClient = useQueryClient();
-    const query = useGetDownloadableCoupons(undefined, { query: { staleTime: 0 } });
-    const coupons = query.data?.data ?? [];
-    const [error, setError] = useState<string | null>(null);
-
-    const download = useDownloadCoupon({
-        mutation: {
-            onSuccess: () => setError(null),
-            onError: (e) => setError(errorMessage(e, '쿠폰을 받지 못했습니다.')),
-            // 성공·실패(소진·이미 받음) 모두 남은 수량과 받은 표시가 바뀌었을 수 있어 다시 받는다
-            onSettled: () => {
-                void queryClient.invalidateQueries({ queryKey: getGetDownloadableCouponsQueryKey() });
-                void queryClient.invalidateQueries({ queryKey: getGetMyCouponsQueryKey() });
-            },
-        },
-    });
-    const downloadingId = download.isPending ? download.variables?.couponId : undefined;
-
     return (
         <section className="flex flex-col gap-space-sm" aria-label="받을 수 있는 쿠폰">
             <Heading level={2}>받을 수 있는 쿠폰</Heading>
-            {error && <p className="font-body-sm text-body-sm text-error" role="alert">{error}</p>}
-            {query.isPending ? (
-                <div className="h-28 rounded bg-surface-container animate-pulse" aria-hidden />
-            ) : query.isError ? (
-                <Text color="secondary">{errorMessage(query.error, '쿠폰을 불러오지 못했습니다.')}</Text>
-            ) : coupons.length === 0 ? (
-                <Card padding={4}><Text color="secondary">지금 받을 수 있는 쿠폰이 없습니다.</Text></Card>
-            ) : (
-                <div className="grid gap-space-sm sm:grid-cols-2">
-                    {coupons.map((c) => (
-                        <DownloadableCard
-                            key={c.couponId}
-                            coupon={c}
-                            loading={downloadingId === c.couponId}
-                            onDownload={() => c.couponId !== undefined && download.mutate({ couponId: c.couponId })}
-                        />
-                    ))}
-                </div>
-            )}
+            <DownloadableCoupons showEmpty />
         </section>
-    );
-}
-
-function DownloadableCard({ coupon, loading, onDownload }: { coupon: DownloadableCouponResponse; loading: boolean; onDownload: () => void }) {
-    const soldOut = coupon.remaining === 0;
-    return (
-        <Card padding={4} className="flex items-center gap-space-md border-l-4 border-l-primary">
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <Text weight="semibold" className="text-primary text-lg">{discountLabel(coupon)}</Text>
-                <Text weight="semibold" className="line-clamp-1">{coupon.name}</Text>
-                <Text type="supporting" color="secondary">{conditionLabel(coupon)}</Text>
-                <Text type="supporting" color="secondary">
-                    {usablePeriodLabel(coupon)}
-                    {coupon.issueEndAt && ` · ${formatDateTime(coupon.issueEndAt)}까지 받기`}
-                    {coupon.remaining != null && ` · 남은 수량 ${coupon.remaining.toLocaleString('ko-KR')}장`}
-                </Text>
-            </div>
-            <Button
-                label={coupon.downloaded ? '받음' : soldOut ? '소진' : '받기'}
-                size="sm"
-                variant={coupon.downloaded || soldOut ? 'secondary' : 'primary'}
-                icon={<Icon name={coupon.downloaded ? 'check' : 'download'} className="text-[18px]" />}
-                isLoading={loading}
-                isDisabled={coupon.downloaded || soldOut}
-                onClick={onDownload}
-            />
-        </Card>
     );
 }
 

@@ -62,13 +62,16 @@ export default function ProductComments({ postId, sellerId }: Props) {
             last.totalPages != null && lastPageParam + 1 < last.totalPages ? lastPageParam + 1 : undefined,
     });
 
-    // 쓰기 · 수정 · 삭제 공통: 성공하면 목록을 다시 받고, BE가 거절하면 이유를 alert로 보여 준다
+    // 쓰기 · 수정 · 삭제 공통: 성공하면 목록을 다시 받는다. BE가 거절한 이유는 돌려주고, 요청한 입력 · 글 아래에 글씨로 보인다
     const write = useMutation({
         mutationFn: ({ url, init }: { url: string; init: RequestInit }) => http<unknown>(url, init),
         onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-        onError: (error) => window.alert(errorMessage(error, '댓글을 처리하지 못했습니다.')),
     });
-    const run = (url: string, init: RequestInit) => write.mutateAsync({ url, init }).then(() => true, () => false);
+    const run = (url: string, init: RequestInit): Promise<Outcome> =>
+        write.mutateAsync({ url, init }).then(
+            () => null,
+            (error: unknown) => errorMessage(error, '댓글을 처리하지 못했습니다.'),
+        );
 
     // 답글은 그 판매글의 판매자나 원댓글 작성자만 쓸 수 있다 (BE SalesPostCommentCreateUseCase.createReply)
     // 판매글의 sellerId는 판매자 번호(seller.id)라서 회원 번호(user.id)가 아니라 내 판매자 번호와 비교한다
@@ -122,7 +125,7 @@ export default function ProductComments({ postId, sellerId }: Props) {
                                 onDelete={(id) =>
                                     window.confirm('댓글을 삭제할까요? 삭제한 댓글은 되돌릴 수 없습니다.')
                                         ? run(`${commentsUrl(postId)}/${id}`, jsonInit('DELETE'))
-                                        : Promise.resolve(false)
+                                        : Promise.resolve(null)
                                 }
                             />
                         ))}
@@ -146,7 +149,10 @@ export default function ProductComments({ postId, sellerId }: Props) {
 
 // ===== 입력 =====
 
-// 내용 검사(빈 글 · 500자 초과)는 글씨로, 서버 거절은 alert로 (등록 · 수정 화면과 같은 방식)
+// 요청 결과: 성공이면 null, BE가 거절하면 그 이유
+type Outcome = string | null;
+
+// 내용 검사(빈 글 · 500자 초과)와 서버 거절 모두 입력 아래 글씨로 보인다
 function validate(content: string): string | null {
     if (content.trim().length === 0) return '내용을 입력해주세요.';
     if (content.length > MAX_LENGTH) return `${MAX_LENGTH}자까지 쓸 수 있습니다.`;
@@ -167,7 +173,7 @@ function TextBox({
     submitLabel: string;
     disabled: boolean;
     withSecret?: boolean;
-    onSubmit: (content: string, isSecret: boolean) => Promise<boolean>;
+    onSubmit: (content: string, isSecret: boolean) => Promise<Outcome>;
     onCancel?: () => void;
 }) {
     const [content, setContent] = useState(initial);
@@ -179,8 +185,9 @@ function TextBox({
         const found = validate(content);
         setProblem(found);
         if (found) return;
-        const ok = await onSubmit(content.trim(), isSecret);
-        if (ok && !onCancel) {
+        const failure = await onSubmit(content.trim(), isSecret);
+        setProblem(failure);
+        if (!failure && !onCancel) {
             setContent('');
             setIsSecret(false);
         }
@@ -208,12 +215,16 @@ function TextBox({
                     <Button label={submitLabel} size="sm" type="submit" isDisabled={disabled} isLoading={disabled} />
                 </div>
             </div>
-            {problem && <Text className="text-error text-caption">{problem}</Text>}
+            {problem && (
+                <Text className="text-error text-caption" role="alert">
+                    {problem}
+                </Text>
+            )}
         </form>
     );
 }
 
-function NewCommentForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (content: string, isSecret: boolean) => Promise<boolean> }) {
+function NewCommentForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (content: string, isSecret: boolean) => Promise<Outcome> }) {
     return <TextBox placeholder="상품에 대해 궁금한 점을 남겨 주세요." submitLabel="댓글 등록" disabled={disabled} withSecret onSubmit={onSubmit} />;
 }
 
@@ -223,9 +234,9 @@ type CommentItemProps = {
     comment: Comment;
     canReply: boolean;
     busy: boolean;
-    onReply: (content: string) => Promise<boolean>;
-    onEdit: (commentId: number, content: string) => Promise<boolean>;
-    onDelete: (commentId: number) => Promise<boolean>;
+    onReply: (content: string) => Promise<Outcome>;
+    onEdit: (commentId: number, content: string) => Promise<Outcome>;
+    onDelete: (commentId: number) => Promise<Outcome>;
 };
 
 function CommentItem({ comment, canReply, busy, onReply, onEdit, onDelete }: CommentItemProps) {
@@ -252,9 +263,9 @@ function CommentItem({ comment, canReply, busy, onReply, onEdit, onDelete }: Com
                             disabled={busy}
                             onCancel={() => setReplying(false)}
                             onSubmit={async (content) => {
-                                const ok = await onReply(content);
-                                if (ok) setReplying(false);
-                                return ok;
+                                const failure = await onReply(content);
+                                if (!failure) setReplying(false);
+                                return failure;
                             }}
                         />
                     )}
@@ -273,10 +284,11 @@ function Entry({
 }: {
     entry: Reply | Comment;
     busy: boolean;
-    onEdit: (commentId: number, content: string) => Promise<boolean>;
-    onDelete: (commentId: number) => Promise<boolean>;
+    onEdit: (commentId: number, content: string) => Promise<Outcome>;
+    onDelete: (commentId: number) => Promise<Outcome>;
 }) {
     const [editing, setEditing] = useState(false);
+    const [deleteProblem, setDeleteProblem] = useState<string | null>(null);
     const isSellerReply = 'isSellerReply' in entry && entry.isSellerReply;
     const muted = entry.isDeleted || (entry.isSecret && !entry.isMine && entry.content === '비밀 댓글입니다.');
 
@@ -295,7 +307,7 @@ function Entry({
                 {entry.isMine && !editing && (
                     <div className="ml-auto flex gap-space-xs">
                         <Button label="수정" size="sm" variant="ghost" isDisabled={busy} onClick={() => setEditing(true)} />
-                        <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={() => void onDelete(entry.commentId)} />
+                        <Button label="삭제" size="sm" variant="ghost" isDisabled={busy} onClick={async () => setDeleteProblem(await onDelete(entry.commentId))} />
                     </div>
                 )}
             </div>
@@ -307,13 +319,18 @@ function Entry({
                     disabled={busy}
                     onCancel={() => setEditing(false)}
                     onSubmit={async (content) => {
-                        const ok = await onEdit(entry.commentId, content);
-                        if (ok) setEditing(false);
-                        return ok;
+                        const failure = await onEdit(entry.commentId, content);
+                        if (!failure) setEditing(false);
+                        return failure;
                     }}
                 />
             ) : (
                 <Text className={`whitespace-pre-line ${muted ? 'text-on-surface-variant' : ''}`}>{entry.content}</Text>
+            )}
+            {deleteProblem && (
+                <Text className="text-error text-caption" role="alert">
+                    {deleteProblem}
+                </Text>
             )}
         </div>
     );
