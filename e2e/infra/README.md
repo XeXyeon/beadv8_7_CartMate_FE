@@ -20,3 +20,12 @@ node e2e/infra/smoke-api.mjs   # 로그인 → 판매글 → 결제 → 배송 �
 - 설정은 저장소 루트 `.env.e2e`(gitignore)에서 읽는다. 토스 테스트 키 자리: `TOSS_SECRET_KEY`(BE), `NEXT_PUBLIC_TOSS_CLIENT_KEY`(FE). 예시는 `e2e/infra/.env.example`.
 - 운영과 다른 점: ① product-service 만 `dev` 프로필(운영 `prod` 는 S3 에만 사진을 올려 로컬 등록이 안 됨) ② 배송 자동 완료 10초(운영 300초, `E2E_DELIVERY_COMPLETE_SECONDS`) ③ 출금 이체 `fake`(운영 `manual`) ④ 메일 발송 끔(코드는 member 로그) ⑤ JVM `-Xmx448m` 고정 ⑥ trace 끔.
 - 관리자 OTP 암호화 키는 BE 기본값과 같은 값을 compose 에 명시했다.
+
+## 인증 코드 · 정산 (E2E 가 직접 처리)
+- 메일 인증 코드: member-service 가 `MAIL_ENABLED=false`(prod 프로필의 `true` 를 환경 변수로 다시 끔)라 SMTP 로 안 나가고 로그 `[인증 메일 — 발송 안 함]` 에 찍힌다. 휴대폰 코드는 `[휴대폰 인증] … → 인증번호`. 코드는 Redis 에 HMAC 해시로만 있어 로그에서 읽는다.
+  ```bash
+  docker logs cartmate-e2e-member-service-1 2>&1 | grep -E '인증 메일|휴대폰 인증' | tail -5
+  ```
+  컨테이너 이름: `cartmate-e2e-<서비스>-1` (member-service · product-service · payment-service · etc-service · order-service, mysql-<서비스>, redis-cache · redis-core, kafka, elasticsearch).
+- 오픈뱅킹: `OPENBANKING_MODE=fake` 를 모든 서비스에 명시(계좌번호 끝 0000 불일치, 9999 → 503, 그 외 통과).
+- 정산 지급 cron: payment-service `CUSTOM_PAYOUT_CRON`, 기본 `0 10 0 * * *`. 매분으로 돌리려면 `E2E_PAYOUT_CRON="0 * * * * *" npm run e2e:env:up`.

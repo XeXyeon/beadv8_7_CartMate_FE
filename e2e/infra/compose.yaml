@@ -50,6 +50,8 @@ x-app-env: &app-env
   KAFKA_ENABLED: "true"
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
   TRACING_SAMPLING: "0"
+  # 오픈뱅킹은 fake 고정(실제 계좌 검증 없음). 계좌번호 끝 0000 → 불일치, 9999 → 503, 그 외 통과. live 로 바꾸지 않는다
+  OPENBANKING_MODE: fake
   # 토스 테스트 키(.env.e2e). 비어 있으면 토스 승인만 실패한다
   TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
 
@@ -186,6 +188,7 @@ services:
       MAIL_FROM: no-reply@cartmate.local
       # 운영은 SMTP 발송. 로컬은 보낼 곳이 없어 끄고(코드는 member 로그에 찍힌다) 신뢰 기기로 2차 인증을 건너뛴다
       CARTMATE_MAIL_ENABLED: "false"
+      MAIL_ENABLED: "false"
     ports: ["18981:8981"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8981/actuator/health/readiness >/dev/null"]
@@ -243,6 +246,8 @@ services:
       WALLET_ACCOUNT_ENCRYPTION_KEY: Y2FydG1hdGUtbG9jYWwtd2FsbGV0LWFjY3Qta2V5ISE=
       # 운영은 manual(관리자 수동 송금). 로컬은 fake 라 출금(E19)이 자동으로 끝난다 — 운영과 다른 값
       WALLET_TRANSFER_MODE: fake
+      # 정산 지급 cron(기본 매일 00:10). E2E 가 짧게 돌릴 수 있게 연다: E2E_PAYOUT_CRON="0 * * * * *" npm run e2e:env:up
+      CUSTOM_PAYOUT_CRON: "${E2E_PAYOUT_CRON:-0 10 0 * * *}"
     ports: ["18983:8983"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8983/actuator/health/readiness >/dev/null"]

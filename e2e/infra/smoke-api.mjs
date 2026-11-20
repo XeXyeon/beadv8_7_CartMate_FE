@@ -121,4 +121,15 @@ for (let i = 0; i < 30 && !delivery; i++) {
 }
 if (!delivery) fail('60초 안에 배송이 생성되지 않았다 (Kafka 이벤트 전달 확인 필요)')
 console.log(`  배송 생성 OK: ${delivery}`)
+step('예치금 충전(E02) API: 충전 주문 생성 → 토스 승인 호출(가짜 paymentKey)')
+const charge = await call(URLS.payment, buyerCookie, 'POST', '/api/wallets/me/charges', { amount: 10000, idempotencyKey: `smoke-${Date.now()}` })
+const orderNumber = charge.orderNumber ?? JSON.stringify(charge).match(/"orderNumber":"([^"]+)"/)?.[1]
+console.log(`  충전 주문 생성 OK (orderNumber=${orderNumber})`)
+const conf = await fetch(`${URLS.payment}/api/wallets/me/charges/confirm`, {
+  method: 'POST', headers: { 'content-type': 'application/json', cookie: buyerCookie },
+  body: JSON.stringify({ orderNumber, paymentKey: 'smoke_fake_payment_key', amount: 10000 }),
+})
+// 가짜 키라 승인은 거절돼야 한다. 거절 사유가 토스에서 온 것(키 인증은 통과)인지 BE 응답으로 가늠한다
+console.log(`  승인 응답 ${conf.status}: ${(await conf.text()).slice(0, 200)}`)
+
 console.log('\n✔ smoke 통과: 로그인 · 판매글 등록 · 결제 → 배송 생성')
