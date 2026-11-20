@@ -17,7 +17,10 @@
     "e2e:env:up": "bash e2e/infra/env.sh up",
     "e2e:env:down": "bash e2e/infra/env.sh down",
     "e2e:env:reset": "bash e2e/infra/env.sh reset",
-    "e2e:env:status": "bash e2e/infra/env.sh status"
+    "e2e:env:status": "bash e2e/infra/env.sh status",
+    "demo:build": "bash demo-video/build.sh",
+    "demo:record": "bash demo-video/run-locked.sh npx playwright test -c playwright.demo.config.ts",
+    "demo:compose": "node demo-video/compose.mjs"
   },
   "dependencies": {
     "@astryxdesign/core": "0.7.14",
