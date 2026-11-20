@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: 24.22.3   # Vercel 프로젝트의 Node.js 버전(24.x)과 맞춘다
+  NODE_VERSION: 26.13.1   # 로컬 개발 버전과 같다. Vercel 실행 환경은 기본값 26.x
 
 # 액션은 태그가 아니라 커밋 해시로 고정한다(태그는 액션 저장소 쪽에서 다른 커밋으로 옮길 수 있다). 주석은 해시의 버전
 jobs:
