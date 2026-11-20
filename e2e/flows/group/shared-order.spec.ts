@@ -18,6 +18,7 @@ import {
     type Person,
 } from '../../support/group-helpers';
 import { authFile } from '../../support/auth';
+import { setWalletBalance } from '../../support/wallet';
 
 // E10 · E11 — 공동물품(N빵): 생성 → 초대 → 담기 → 마감 → 분담금 결제 / 결제 중 만든 사람 취소.
 // E10: 만든 사람 = e2e-buyer1, 참여자 = e2e-buyer2(둘 다 결제). E11: 만든 사람 = e2e-buyer2(결제 안 함), 참여자 = e2e-buyer1(결제 후 환불).
@@ -39,6 +40,9 @@ test.describe('N빵 공동 주문', () => {
             const post = await createPost(seller, { name: `엔빵 상품 E10 ${Date.now()}`, price: PRICE });
             creator = await openPerson(browser, baseURL, 'buyer1');
             member = await openPerson(browser, baseURL, 'buyer2');
+            // 잔액은 QA-3 공용 도우미로 로컬 DB에 맞춘다(토스 결제창은 자동화 불가). 실행 전·후 차이로 검증한다.
+            await setWalletBalance('buyer1', 50_000);
+            await setWalletBalance('buyer2', 50_000);
             const creatorBefore = await requireBalance(creator, PRICE);
             const memberBefore = await requireBalance(member, PRICE);
 
