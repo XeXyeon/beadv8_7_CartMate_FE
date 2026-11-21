@@ -186,7 +186,7 @@ function DetailContent({ post }: { post: PostWithReviews }) {
                         total={inventory == null ? null : inventory.price * shownQuantity}
                     />
                     {currentId !== null && <ProductPaybackConditions key={currentId} productId={currentId} />}
-                    <ProductCoupons sellerId={post.sellerId} />
+                    <ProductCoupons sellerId={post.sellerId} postId={post.id} />
                     <SellerTrustPanel sellerId={post.sellerId} fallback={toSellerTrust(post.sellerTrustLevel, post.sellerTrustScore)} />
                 </div>
             </div>
