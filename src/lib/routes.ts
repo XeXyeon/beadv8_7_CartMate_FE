@@ -8,6 +8,9 @@ export const ROUTES = {
     product: (id: string | number = 1) => `/products/${id}`,
     cart: '/cart',
     checkout: '/checkout',
+    // 바로 구매 주문서: 장바구니를 거치지 않고 고른 재고 · 수량으로 바로 주문한다
+    checkoutBuyNow: (postId: number, inventoryId: number, quantity: number) =>
+        `/checkout?buyNow=${inventoryId}&qty=${quantity}&post=${postId}`,
     checkoutShared: (orderId: string | number) => `/checkout/shared?order=${orderId}`,
 
     groupPurchases: '/group-purchases',
