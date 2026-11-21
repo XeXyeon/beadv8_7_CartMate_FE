@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
@@ -24,11 +25,13 @@ type Props = {
     showEmpty?: boolean;
     // 좁은 칸(상품 상세 옆 칸)에서는 한 줄에 하나씩
     compact?: boolean;
+    // 비로그인일 때: 받기 대신 이 주소(로그인 후 돌아올 곳을 담은 로그인 주소)로 보낸다
+    loginHref?: string;
 };
 
 // 받을 수 있는 쿠폰 목록과 받기 버튼. 쿠폰함과 상품 상세가 함께 쓴다.
-// 비로그인으로 부르면 BE가 500을 내므로(BE:ISS-44) 로그인한 화면에서만 그린다.
-export default function DownloadableCoupons({ sellerId, showEmpty = false, compact = false }: Props) {
+// 비로그인도 목록은 볼 수 있다(BE가 받음 여부를 모두 false로 준다). 받기는 로그인으로 안내한다.
+export default function DownloadableCoupons({ sellerId, showEmpty = false, compact = false, loginHref }: Props) {
     const queryClient = useQueryClient();
     const query = useGetDownloadableCoupons(sellerId === undefined ? undefined : { sellerId }, { query: { staleTime: 0 } });
     const coupons = query.data?.data ?? [];
@@ -66,6 +69,7 @@ export default function DownloadableCoupons({ sellerId, showEmpty = false, compa
                             inSellerPage={sellerId !== undefined}
                             loading={downloadingId === c.couponId}
                             busy={download.isPending}
+                            loginHref={loginHref}
                             onDownload={() => c.couponId !== undefined && download.mutate({ couponId: c.couponId })}
                         />
                     ))}
@@ -80,15 +84,37 @@ function DownloadableCard({
     inSellerPage,
     loading,
     busy,
+    loginHref,
     onDownload,
 }: {
     coupon: DownloadableCouponResponse;
     inSellerPage: boolean;
     loading: boolean;
     busy: boolean;
+    loginHref?: string;
     onDownload: () => void;
 }) {
     const soldOut = coupon.remaining === 0;
+    const button = loginHref && !soldOut ? (
+        <Button
+            label="로그인하고 받기"
+            size="sm"
+            variant="primary"
+            href={loginHref}
+            as={Link}
+            icon={<Icon name="login" className="text-[18px]" />}
+        />
+    ) : (
+        <Button
+            label={coupon.downloaded ? '받음' : soldOut ? '소진' : '받기'}
+            size="sm"
+            variant={coupon.downloaded || soldOut ? 'secondary' : 'primary'}
+            icon={<Icon name={coupon.downloaded ? 'check' : 'download'} className="text-[18px]" />}
+            isLoading={loading}
+            isDisabled={coupon.downloaded || soldOut || (busy && !loading)}
+            onClick={onDownload}
+        />
+    );
     return (
         <Card padding={4} className="flex items-center gap-space-md border-l-4 border-l-primary">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -101,15 +127,7 @@ function DownloadableCard({
                     {coupon.remaining != null && ` · 남은 수량 ${coupon.remaining.toLocaleString('ko-KR')}장`}
                 </Text>
             </div>
-            <Button
-                label={coupon.downloaded ? '받음' : soldOut ? '소진' : '받기'}
-                size="sm"
-                variant={coupon.downloaded || soldOut ? 'secondary' : 'primary'}
-                icon={<Icon name={coupon.downloaded ? 'check' : 'download'} className="text-[18px]" />}
-                isLoading={loading}
-                isDisabled={coupon.downloaded || soldOut || (busy && !loading)}
-                onClick={onDownload}
-            />
+            {button}
         </Card>
     );
 }
