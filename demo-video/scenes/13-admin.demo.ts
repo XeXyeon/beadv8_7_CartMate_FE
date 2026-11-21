@@ -5,14 +5,14 @@ import { createDemoPost, productImage } from '../support/data';
 import { SELLER_STATE, newScene, sellerApi } from '../support/shared';
 
 // E14 관리자 판매글 숨김 → 구매 불가 → 해제, E24 회원 정지 → 로그인 차단 → 해제.
-test('장면 12 관리자 운영 (E14 · E24)', async ({ browser, baseURL, playwright }) => {
+test('장면 13 관리자 운영 (E14 · E24)', async ({ browser, baseURL, playwright }) => {
     const seller = await sellerApi(playwright, baseURL);
     const title = '여름 한정 러닝 모자';
     const post = await createDemoPost(seller, { title, name: title, price: 15_000, image: await productImage(browser, '🧢', title, '#ddd6fe') });
     await seller.storageState({ path: SELLER_STATE }).catch(() => {});
     await seller.dispose();
     const target = await createFreshMember('demo');
-    const s = newScene(12, 'E14·E24', '관리자 운영', browser, baseURL);
+    const s = newScene(13, 'E14·E24', '관리자 운영', browser, baseURL);
     try {
         const a = await s.open({ storageState: authFile('admin') });
         const ap = a.page;

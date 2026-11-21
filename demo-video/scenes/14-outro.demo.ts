@@ -1,8 +1,8 @@
 import { test } from '@playwright/test';
 import { newScene, showCard } from '../support/shared';
 
-test('장면 13 마무리', async ({ browser, baseURL }) => {
-    const s = newScene(13, 'OUTRO', '마무리', browser, baseURL);
+test('장면 14 마무리', async ({ browser, baseURL }) => {
+    const s = newScene(14, 'OUTRO', '마무리', browser, baseURL);
     try {
         const n = await s.open();
         await showCard(n, 'TEAMBUY', '시청해 주셔서 감사합니다', ['회원 · 예치금 · 판매자', '구매 · 쿠폰 · 공동구매', '배송 · 환불 · 교환 · 정산', '관리자 운영']);

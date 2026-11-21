@@ -8,9 +8,7 @@ import { SELLER_STATE, newScene, sellerApi } from '../support/shared';
 // E13 개인물품 공구: 만든 사람(buyer2)이 공구를 열고 → 초대 링크로 들어온 사람(buyer1)이 각자 주문 · 결제 → 만든 사람 현황판에 주문이 보인다.
 const PRICE = 10_000;
 
-// 영상 길이(10분 이내) 때문에 기본은 건너뛴다. DEMO_EXTRAS=1이면 녹화한다.
-test('장면 08b 개인물품 공구 (E13)', async ({ browser, baseURL, playwright }) => {
-    test.skip(process.env.DEMO_EXTRAS !== '1', 'DEMO_EXTRAS=1일 때만(영상 길이 때문에 기본 제외)');
+test('장면 09 개인물품 공구 (E13)', async ({ browser, baseURL, playwright }) => {
     await releaseAbuse(playwright, baseURL, ['buyer1', 'buyer2']);
     await setWalletBalance('buyer1', 50_000);
     const seller = await sellerApi(playwright, baseURL);
@@ -18,7 +16,7 @@ test('장면 08b 개인물품 공구 (E13)', async ({ browser, baseURL, playwrig
     await seller.storageState({ path: SELLER_STATE }).catch(() => {});
     await seller.dispose();
     const title = '풋살팀 트레이닝복 공구';
-    const s = newScene(8, 'E13', '공동구매 ③: 개인물품 공구', browser, baseURL, 'b');
+    const s = newScene(9, 'E13', '공동구매 ③: 개인물품 공구', browser, baseURL);
     let groupId = 0;
     let invitePath = '';
     try {

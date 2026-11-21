@@ -6,20 +6,20 @@ import { SELLER_STATE, clearTodayPayoutBatchRuns, member, newScene, sellerApi } 
 
 // E30 구매 확정 → 정산 대기 → 지급 배치 → 지급 완료, E19 예치금 출금.
 // 지급 예정일(다음 달 15일)은 기다릴 수 없어서, 이 판매자의 대기 정산만 지급 대상으로 당기고 지급 배치(payment의 cron)를 매분으로 돌려 지급시킨다(화면 밖).
-test('장면 11 정산과 출금 (E30 · E19)', async ({ browser, baseURL, playwright }) => {
+test('장면 12 정산과 출금 (E30 · E19)', async ({ browser, baseURL, playwright }) => {
     test.setTimeout(20 * 60_000);
     const m = member();
     const api = await sellerApi(playwright, baseURL);
     const info = (await (await api.get('/api/members/me/seller')).json()).data;
     const sellerId = Number(info.id ?? info.sellerId);
     const pending = (await listPayouts(sellerId)).filter((p) => p.status === 'PENDING');
-    expect(pending.length, '구매 확정(장면 9)으로 생긴 대기 정산').toBeGreaterThan(0);
+    expect(pending.length, '구매 확정(장면 10)으로 생긴 대기 정산').toBeGreaterThan(0);
     const net = pending.reduce((sum, p) => sum + p.payoutAmount, 0);
     const fee = pending.reduce((sum, p) => sum + p.feeAmount, 0);
     const sales = pending.reduce((sum, p) => sum + p.salesAmount, 0);
     const walletBefore = await walletBalance(api);
 
-    const s = newScene(11, 'E30·E19', '정산과 출금', browser, baseURL);
+    const s = newScene(12, 'E30·E19', '정산과 출금', browser, baseURL);
     try {
         const a = await s.open({ storageState: SELLER_STATE });
         await a.beat(`구매가 확정되면 판매자에게 정산이 생깁니다. 정산 화면에는 판매 금액 ${won(sales)}에서 수수료 3퍼센트를 뺀 지급 예정 금액이 정산 예정으로 표시됩니다.`, async () => {

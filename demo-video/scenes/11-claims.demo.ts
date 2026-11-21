@@ -6,9 +6,9 @@ import { SELLER_STATE, newScene, orders } from '../support/shared';
 import { applyClaim, approveFirst, completeClaim } from '../support/ship-ui';
 
 // E09 환불(반품) 신청 → 판매자 수락 → 환불 완료, E20 교환 신청 → 판매자 수락 → 완료.
-test('장면 10 환불과 교환 (E09 · E20)', async ({ browser, baseURL, playwright }) => {
+test('장면 11 환불과 교환 (E09 · E20)', async ({ browser, baseURL, playwright }) => {
     const o = orders();
-    if (!o.e09Delivery || !o.e20Delivery) throw new Error('장면 9를 먼저 돌리세요.');
+    if (!o.e09Delivery || !o.e20Delivery) throw new Error('장면 10을 먼저 돌리세요.');
     const buyerApi = await playwright.request.newContext({ baseURL, storageState: authFile('buyer1') });
     await waitDeliveredAll(buyerApi, [o.e09Delivery, o.e20Delivery]);
     const refundOrder = o.e04!;
@@ -19,7 +19,7 @@ test('장면 10 환불과 교환 (E09 · E20)', async ({ browser, baseURL, playw
 
     // 영상 길이(10분 이내) 때문에 교환(E20)은 기본 제외. DEMO_EXTRAS=1이면 함께 녹화한다.
     const withExchange = process.env.DEMO_EXTRAS === '1';
-    const s = newScene(10, withExchange ? 'E09·E20' : 'E09', withExchange ? '환불과 교환' : '환불', browser, baseURL);
+    const s = newScene(11, withExchange ? 'E09·E20' : 'E09', withExchange ? '환불과 교환' : '환불', browser, baseURL);
     try {
         const a = await s.open({ storageState: authFile('buyer1') });
         await a.beat('배송이 완료된 주문은 주문 상세에서 반품이나 교환을 신청할 수 있습니다. 단순 변심으로 반품, 즉 환불을 신청합니다. 신청하면 클레임 내역에 접수 상태로 나타납니다.', async () => {

@@ -5,7 +5,7 @@ import { SELLER_STATE, newScene, orders, saveOrders, sellerApi } from '../suppor
 
 // E08 결제 → 판매자 송장 · 출고 → 배송 완료(자동) → 구매 확정. 장면 5에서 결제한 주문을 쓴다.
 // 다음 장면(환불 · 교환)에 쓸 두 주문은 화면 밖에서 먼저 출고해 둔다(배송 완료까지 시간이 걸려서).
-test('장면 09 배송과 구매 확정 (E08)', async ({ browser, baseURL, playwright }) => {
+test('장면 10 배송과 구매 확정 (E08)', async ({ browser, baseURL, playwright }) => {
     const o = orders();
     if (!o.e03 || !o.e04 || !o.e07) throw new Error('work/orders.json에 장면 5 · 6의 주문이 없습니다.');
     const seller = await sellerApi(playwright, baseURL);
@@ -31,7 +31,7 @@ test('장면 09 배송과 구매 확정 (E08)', async ({ browser, baseURL, playw
         await buyer.dispose();
     }
 
-    const s = newScene(9, 'E08', '배송과 구매 확정', browser, baseURL);
+    const s = newScene(10, 'E08', '배송과 구매 확정', browser, baseURL);
     const status = (page: import('@playwright/test').Page) => page.locator('[data-delivery-status]').first();
     try {
         const a = await s.open({ storageState: authFile('buyer1') });
