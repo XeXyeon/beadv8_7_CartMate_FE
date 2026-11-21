@@ -3835,7 +3835,7 @@
         "tags": [
           "shared-group-order-controller"
         ],
-        "summary": "공동 주문 분담금 예치금 결제",
+        "summary": "공동 주문 분담금 예치금 결제 (플랫폼 쿠폰 선택)",
         "operationId": "paySharedGroupOrder",
         "parameters": [
           {
@@ -3864,6 +3864,38 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/RsDataPaymentResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/group-orders/shared/{id}/coupons": {
+      "get": {
+        "tags": [
+          "shared-group-order-controller"
+        ],
+        "summary": "분담금 결제에 쓸 수 있는 내 쿠폰 목록 (대상 금액은 내 분담금, 판매자 쿠폰은 쓸 수 없음)",
+        "operationId": "sharedGroupOrderCouponOptions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataListCouponOption"
                 }
               }
             }
@@ -10986,6 +11018,10 @@
         "properties": {
           "teamDeliveryAddress": {
             "$ref": "#/components/schemas/TeamDeliveryAddress"
+          },
+          "memberCouponId": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -12114,6 +12150,16 @@
           "serverTime": {
             "type": "string",
             "format": "date-time"
+          },
+          "myDiscountAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "내 분담금에 쓴 쿠폰 할인. 결제 전이거나 쿠폰을 안 썼으면 0"
+          },
+          "myPayAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "내가 낼(낸) 금액 = 내 분담금 - 쿠폰 할인"
           }
         }
       },

@@ -16,7 +16,9 @@ import {
     getGetMyList3QueryKey,
     useCancel2,
     useGetDetail3,
+    getSharedGroupOrderCouponOptionsQueryKey,
     usePaySharedGroupOrder,
+    useSharedGroupOrderCouponOptions,
 } from '@/api/generated/shared-group-order-controller/shared-group-order-controller';
 import {
     getGetMyWalletQueryKey,
@@ -29,6 +31,7 @@ import { buyerCancelLabel, partialCancelTitle, SHARED_ORDER_CANCEL_MESSAGE } fro
 import { formatDateTime, formatPhone, parseKst } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
+import { CouponSelectView } from '../../_components/CouponSelect';
 import Notice from '../../_components/Notice';
 
 // 공동 주문(?order=공동주문id)을 상태별로 보여 준다.
@@ -55,7 +58,13 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
     // 잔액은 다른 탭에서 바뀔 수 있어 화면에 들어올 때마다 새로 받는다.
     const wallet = useGetMyWallet({ query: { staleTime: 0 } });
     const balance = wallet.data?.data?.balance ?? 0;
-    const amount = order.myShareAmount ?? 0;
+    const share = order.myShareAmount ?? 0;
+    // 분담금에는 플랫폼 쿠폰 한 장을 쓸 수 있다(대상 금액은 내 분담금). 예상 할인액은 BE가 내 분담금으로 계산한 값이다.
+    const [couponId, setCouponId] = useState<number | null>(null);
+    const coupons = useSharedGroupOrderCouponOptions(orderId, { query: { staleTime: 0 } });
+    const selectedCoupon = (coupons.data?.data ?? []).find((o) => o.usable && o.memberCouponId === couponId);
+    const discount = Math.min(selectedCoupon?.expectedDiscount ?? 0, share);
+    const amount = share - discount;
     const sufficient = balance >= amount;
     const deadlinePassed = isPast(order.paymentDeadlineAt, order.serverTime);
 
@@ -88,6 +97,8 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
             onError: () => {
                 void queryClient.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
                 void queryClient.invalidateQueries({ queryKey: getGetDetail3QueryKey(orderId) });
+                // 쿠폰이 만료·사용됨 등으로 거절됐을 수 있어 목록도 다시 받는다.
+                void queryClient.invalidateQueries({ queryKey: getSharedGroupOrderCouponOptionsQueryKey(orderId) });
             },
         },
     });
@@ -97,10 +108,11 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
     const canPay = !deadlinePassed && sufficient && addressValid && agreed && !busy && !canceling && !wallet.isPending;
 
     const submit = () => {
-        pay.mutate({
-            id: orderId,
-            data: needsAddress ? { teamDeliveryAddress: trimAddress(current) } : undefined,
-        });
+        const data = {
+            ...(needsAddress ? { teamDeliveryAddress: trimAddress(current) } : {}),
+            ...(selectedCoupon ? { memberCouponId: couponId ?? undefined } : {}),
+        };
+        pay.mutate({ id: orderId, data: Object.keys(data).length ? data : undefined });
     };
 
     return (
@@ -141,6 +153,8 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
                 </section>
             )}
 
+            <CouponSelectView query={coupons} selected={couponId} onChange={setCouponId} disabled={busy || canceling} />
+
             <section className="border border-outline-variant p-space-md flex flex-col gap-space-sm" aria-label="예치금 결제">
                 <h3 className="font-label-md text-label-md text-primary font-bold">예치금 결제</h3>
                 {wallet.isPending ? (
@@ -149,6 +163,14 @@ function SharedPayment({ orderId, order }: { orderId: number; order: SharedGroup
                     <>
                         <dl className="grid grid-cols-[1fr_auto] gap-y-space-xs font-body-sm text-body-sm">
                             <dt className="text-on-surface-variant">내 분담금</dt>
+                            <dd className="text-on-surface text-right">{formatPrice(share)}</dd>
+                            {discount > 0 && (
+                                <>
+                                    <dt className="text-on-surface-variant">쿠폰 할인</dt>
+                                    <dd className="text-primary text-right">-{formatPrice(discount)}</dd>
+                                </>
+                            )}
+                            <dt className="text-on-surface-variant">결제 금액</dt>
                             <dd className="text-on-surface font-semibold text-right">{formatPrice(amount)}</dd>
                             <dt className="text-on-surface-variant">보유 예치금</dt>
                             <dd className="text-on-surface text-right">{formatPrice(balance)}</dd>
@@ -219,8 +241,7 @@ function SharedWaiting({ order }: { order: SharedGroupOrderDetailResponse }) {
                 환불됩니다.
             </p>
             <OrderSummary order={order}>
-                <dt className="text-secondary">내 분담금</dt>
-                <dd className="text-on-surface font-semibold">{formatPrice(order.myShareAmount ?? 0)}</dd>
+                <MyPayment order={order} />
             </OrderSummary>
             <Participants order={order} />
             <BackToGroupPurchase order={order} />
@@ -312,8 +333,7 @@ function SharedConfirmed({ order }: { order: SharedGroupOrderDetailResponse }) {
             <OrderSummary order={order}>
                 <dt className="text-secondary">확정 시각</dt>
                 <dd className="text-on-surface">{formatDateTime(order.confirmedAt)}</dd>
-                <dt className="text-secondary">내 분담금</dt>
-                <dd className="text-on-surface font-semibold">{formatPrice(order.myShareAmount ?? 0)}</dd>
+                <MyPayment order={order} />
             </OrderSummary>
             <SharedPartialCancel order={order} />
             {order.teamDeliveryAddress && (
@@ -339,7 +359,7 @@ function SharedCanceled({ order }: { order: SharedGroupOrderDetailResponse }) {
             {iPaid && (
                 <div className="p-space-sm bg-surface-container-low border border-outline-variant font-body-sm text-body-sm flex items-center gap-space-xs">
                     <Icon name="undo" className="text-[18px] text-primary" />
-                    <SharedRefundText orderId={order.id ?? 0} fallback={order.myShareAmount ?? 0} />
+                    <SharedRefundText orderId={order.id ?? 0} fallback={paidAmount(order)} />
                     <Link className="ml-auto underline font-semibold text-primary" href={ROUTES.depositHistory}>
                         예치금 내역
                     </Link>
@@ -396,6 +416,34 @@ function SharedRefundText({ orderId, fallback }: { orderId: number; fallback: nu
 }
 
 // ===== 공통 조각 =====
+// 결제한 뒤 보여 주는 내 금액. 쿠폰을 썼으면 분담금 · 쿠폰 할인 · 낸 금액을 나눠 보여 준다.
+function MyPayment({ order }: { order: SharedGroupOrderDetailResponse }) {
+    const discount = order.myDiscountAmount ?? 0;
+    if (discount <= 0) {
+        return (
+            <>
+                <dt className="text-secondary">내 분담금</dt>
+                <dd className="text-on-surface font-semibold">{formatPrice(order.myShareAmount ?? 0)}</dd>
+            </>
+        );
+    }
+    return (
+        <>
+            <dt className="text-secondary">내 분담금</dt>
+            <dd className="text-on-surface">{formatPrice(order.myShareAmount ?? 0)}</dd>
+            <dt className="text-secondary">쿠폰 할인</dt>
+            <dd className="text-primary">-{formatPrice(discount)}</dd>
+            <dt className="text-secondary">결제 금액</dt>
+            <dd className="text-on-surface font-semibold">{formatPrice(paidAmount(order))}</dd>
+        </>
+    );
+}
+
+// 내가 실제로 낸(낼) 금액. 이 칸이 없는 옛 응답이면 분담금
+function paidAmount(order: SharedGroupOrderDetailResponse): number {
+    return order.myPayAmount ?? order.myShareAmount ?? 0;
+}
+
 function Participants({ order }: { order: SharedGroupOrderDetailResponse }) {
     const participants: ParticipantResponse[] = order.participants ?? [];
     const paid = participants.filter((p) => p.status === 'PAID').length;
