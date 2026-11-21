@@ -96,6 +96,7 @@ export * from './demandCandidateResponse';
 export * from './demandGroupPurchaseOpenRequest';
 export * from './demandSimilarProductResponse';
 export * from './demandSimilarProductResponseMatchType';
+export * from './directOrderCreateRequest';
 export * from './downloadableCouponResponse';
 export * from './failure';
 export * from './getAdminCouponsParams';
