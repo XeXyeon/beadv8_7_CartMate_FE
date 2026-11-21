@@ -73,3 +73,6 @@ export const ROUTES = {
     adminCartDemands: '/admin/carts/demands',
     adminIndividualGroupPurchaseDashboard: (id: string | number) => `/admin/carts/group-purchases/individual/${id}`,
 } as const;
+
+// 판매자 센터로 되돌려 보낼 때 붙이는 표시. 이 표시가 있는 주소가 또 막히면 다시 시도하지 않는다
+export const ROLE_REFRESHED_PARAM = 'roleRefreshed';

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { ROUTES } from '@/lib/routes';
+import { ROLE_REFRESHED_PARAM, ROUTES } from '@/lib/routes';
 import { ACCESS_TOKEN_COOKIE, readSession, type Role } from '@/lib/session';
 
 // 페이지 접근 제어. BE SecurityConfig 의 인증 필요 API와 맞춘다.
@@ -39,7 +39,14 @@ export function proxy(request: NextRequest) {
     }
 
     if (rule.roles && !rule.roles.includes(session.role)) {
-        return NextResponse.redirect(new URL(rule.deniedTo ?? ROUTES.home, request.url));
+        const denied = new URL(rule.deniedTo ?? ROUTES.home, request.url);
+        // 판매자 센터: 다른 기기에서 판매자로 등록했으면 이 브라우저의 토큰만 예전 역할일 수 있다.
+        // 등록 화면이 이미 판매자인지 확인해 토큰을 다시 받고 원래 주소로 돌려보낼 수 있게, 가려던 주소를 싣는다.
+        // 한 번 돌려보낸 주소(roleRefreshed)가 또 막히면 싣지 않아 반복을 끊는다
+        if (rule.deniedTo === ROUTES.sellerApply && !request.nextUrl.searchParams.has(ROLE_REFRESHED_PARAM)) {
+            denied.searchParams.set('next', `${pathname}${search}`);
+        }
+        return NextResponse.redirect(denied);
     }
 
     return NextResponse.next();
