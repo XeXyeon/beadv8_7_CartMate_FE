@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { Badge, Button, Card, Heading, Text } from '@astryxdesign/core';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/Icon';
+import { refreshOnce } from '@/api/http';
 import { apiFetch, ApiError } from '@/lib/api';
-import { useRefreshCurrentUser } from '@/lib/auth';
-import { ROUTES } from '@/lib/routes';
+import { reloadTo, useRefreshCurrentUser } from '@/lib/auth';
+import { ROLE_REFRESHED_PARAM, ROUTES } from '@/lib/routes';
 
 type SellerType = 'INDIVIDUAL' | 'BUSINESS';
 
@@ -59,6 +59,24 @@ function formatBusinessNumber(value: string) {
 
 const errorMessage = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
+// 다른 기기에서 판매자로 등록했으면 이 브라우저의 토큰은 아직 구매자 역할이라 판매자 센터에서 막힌다.
+// 토큰을 다시 받으면 서버가 지금 역할(판매자)로 발급하므로, 다시 받은 뒤 전체 이동한다
+async function goToSellerCenter(path: string) {
+    await refreshOnce();
+    reloadTo(path);
+}
+
+// 판매자 센터에서 막혀 온 경우(?next=/seller/...)의 원래 주소. 판매자 센터 주소만 받는다(다른 곳으로 보내지 않게)
+function sellerCenterNext(): string | null {
+    const next = new URLSearchParams(window.location.search).get('next');
+    const isSellerCenter =
+        next !== null && (next === ROUTES.seller || next.startsWith(`${ROUTES.seller}/`) || next.startsWith(`${ROUTES.seller}?`));
+    if (!isSellerCenter) return null;
+    const url = new URL(next, window.location.origin);
+    url.searchParams.set(ROLE_REFRESHED_PARAM, '1');
+    return `${url.pathname}${url.search}`;
+}
+
 export default function SellerApplyForm() {
     const router = useRouter();
     const refreshCurrentUser = useRefreshCurrentUser();
@@ -84,8 +102,17 @@ export default function SellerApplyForm() {
 
     useEffect(() => {
         (async () => {
+            let redirecting = false;
             try {
                 const res = await apiFetch<Seller>('/api/members/me/seller');
+                const next = res.data ? sellerCenterNext() : null;
+                if (next) {
+                    // 이미 판매자인데 판매자 센터에서 막혀 왔다 → 등록 화면을 보여 주지 않고 토큰을 다시 받아 원래 주소로 간다.
+                    // 이동하는 동안에는 로딩 화면을 그대로 둔다(빈 등록 폼이 잠깐 보이지 않게)
+                    redirecting = true;
+                    await goToSellerCenter(next);
+                    return;
+                }
                 setSeller(res.data);
             } catch (e) {
                 if (e instanceof ApiError && e.resultCode.startsWith('401')) {
@@ -94,7 +121,7 @@ export default function SellerApplyForm() {
                 }
                 setFormError(errorMessage(e, '판매자 정보를 불러오지 못했습니다.'));
             } finally {
-                setLoading(false);
+                if (!redirecting) setLoading(false);
             }
         })();
     }, [router]);
@@ -253,13 +280,14 @@ export default function SellerApplyForm() {
                 </div>
 
                 <div className="pt-space-lg flex justify-end">
-                    <Link
-                        href={ROUTES.seller}
+                    <button
+                        type="button"
+                        onClick={() => void goToSellerCenter(ROUTES.seller)}
                         className="h-12 px-space-xl bg-primary text-on-primary rounded font-label-md text-label-md hover:opacity-90 transition-opacity flex items-center gap-space-xs shadow-sm"
                     >
                         <span>판매자 센터로 이동</span>
                         <Icon name="arrow_forward" className="text-[18px]" />
-                    </Link>
+                    </button>
                 </div>
             </Card>
         );
