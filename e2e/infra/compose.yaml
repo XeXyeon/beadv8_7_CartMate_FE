@@ -218,7 +218,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update   # dev yaml 이 켜던 값(운영 yaml 은 JPA_DDL_AUTO 기본 update)
       PRODUCT_URL: http://localhost:9982
       image.local.dir: /tmp/uploads
-      image.local.url: http://localhost:18982/uploads
+      image.local.url: http://localhost:18982/images
       ES_URL: http://elasticsearch:9200
       ES_USERNAME: elastic
       ES_PASSWORD: e2e-elastic
