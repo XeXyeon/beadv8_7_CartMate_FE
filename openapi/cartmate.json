@@ -3393,6 +3393,36 @@
         }
       }
     },
+    "/api/orders/direct": {
+      "post": {
+        "tags": [
+          "order-controller"
+        ],
+        "operationId": "createDirect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectOrderCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataOrderCreateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/orders/{orderId}/payment": {
       "post": {
         "tags": [
@@ -12885,6 +12915,28 @@
         },
         "required": [
           "reason"
+        ]
+      },
+      "DirectOrderCreateRequest": {
+        "type": "object",
+        "properties": {
+          "inventoryId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 999,
+            "minimum": 1
+          },
+          "deliveryAddress": {
+            "$ref": "#/components/schemas/DeliveryAddressRequest"
+          }
+        },
+        "required": [
+          "deliveryAddress",
+          "inventoryId"
         ]
       }
     }

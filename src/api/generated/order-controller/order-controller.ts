@@ -25,6 +25,7 @@ import type {
 
 import type {
   CancelPreviewParams,
+  DirectOrderCreateRequest,
   IndividualGroupOrderCreateRequest,
   OrderCancelRequest,
   OrderCreateRequest,
@@ -144,6 +145,87 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getCreatePersonalMutationOptions(options), queryClient);
+    }
+    export const getCreateDirectUrl = () => {
+
+
+
+
+  return `/api/orders/direct`
+}
+
+export const createDirect = async (directOrderCreateRequest: DirectOrderCreateRequest, options?: Parameters<typeof http>[1]): Promise<RsDataOrderCreateResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return http<RsDataOrderCreateResponse>(getCreateDirectUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(directOrderCreateRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateDirectMutationKey = () => ['createDirect'] as const;
+
+export const getCreateDirectMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDirect>>, TError,CreateDirectMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDirect>>, TError,CreateDirectMutationVariables, TContext> => {
+
+const mutationKey = getCreateDirectMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDirect>>, CreateDirectMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDirect(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDirectMutationResult = NonNullable<Awaited<ReturnType<typeof createDirect>>>
+    export type CreateDirectMutationBody = DirectOrderCreateRequest
+    export type CreateDirectMutationError = unknown
+    export type CreateDirectMutationVariables = {data: DirectOrderCreateRequest}
+
+    export const useCreateDirect = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDirect>>, TError,CreateDirectMutationVariables, TContext>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createDirect>>,
+        TError,
+        CreateDirectMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateDirectMutationOptions(options), queryClient);
     }
     export const getPayOrderUrl = (orderId: number,) => {
 
