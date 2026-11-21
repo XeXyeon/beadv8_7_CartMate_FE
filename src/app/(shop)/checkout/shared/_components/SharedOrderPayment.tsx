@@ -241,8 +241,7 @@ function SharedWaiting({ order }: { order: SharedGroupOrderDetailResponse }) {
                 환불됩니다.
             </p>
             <OrderSummary order={order}>
-                <dt className="text-secondary">내 분담금</dt>
-                <dd className="text-on-surface font-semibold">{formatPrice(order.myShareAmount ?? 0)}</dd>
+                <MyPayment order={order} />
             </OrderSummary>
             <Participants order={order} />
             <BackToGroupPurchase order={order} />
@@ -334,8 +333,7 @@ function SharedConfirmed({ order }: { order: SharedGroupOrderDetailResponse }) {
             <OrderSummary order={order}>
                 <dt className="text-secondary">확정 시각</dt>
                 <dd className="text-on-surface">{formatDateTime(order.confirmedAt)}</dd>
-                <dt className="text-secondary">내 분담금</dt>
-                <dd className="text-on-surface font-semibold">{formatPrice(order.myShareAmount ?? 0)}</dd>
+                <MyPayment order={order} />
             </OrderSummary>
             <SharedPartialCancel order={order} />
             {order.teamDeliveryAddress && (
@@ -361,7 +359,7 @@ function SharedCanceled({ order }: { order: SharedGroupOrderDetailResponse }) {
             {iPaid && (
                 <div className="p-space-sm bg-surface-container-low border border-outline-variant font-body-sm text-body-sm flex items-center gap-space-xs">
                     <Icon name="undo" className="text-[18px] text-primary" />
-                    <SharedRefundText orderId={order.id ?? 0} fallback={order.myShareAmount ?? 0} />
+                    <SharedRefundText orderId={order.id ?? 0} fallback={paidAmount(order)} />
                     <Link className="ml-auto underline font-semibold text-primary" href={ROUTES.depositHistory}>
                         예치금 내역
                     </Link>
@@ -418,6 +416,34 @@ function SharedRefundText({ orderId, fallback }: { orderId: number; fallback: nu
 }
 
 // ===== 공통 조각 =====
+// 결제한 뒤 보여 주는 내 금액. 쿠폰을 썼으면 분담금 · 쿠폰 할인 · 낸 금액을 나눠 보여 준다.
+function MyPayment({ order }: { order: SharedGroupOrderDetailResponse }) {
+    const discount = order.myDiscountAmount ?? 0;
+    if (discount <= 0) {
+        return (
+            <>
+                <dt className="text-secondary">내 분담금</dt>
+                <dd className="text-on-surface font-semibold">{formatPrice(order.myShareAmount ?? 0)}</dd>
+            </>
+        );
+    }
+    return (
+        <>
+            <dt className="text-secondary">내 분담금</dt>
+            <dd className="text-on-surface">{formatPrice(order.myShareAmount ?? 0)}</dd>
+            <dt className="text-secondary">쿠폰 할인</dt>
+            <dd className="text-primary">-{formatPrice(discount)}</dd>
+            <dt className="text-secondary">결제 금액</dt>
+            <dd className="text-on-surface font-semibold">{formatPrice(paidAmount(order))}</dd>
+        </>
+    );
+}
+
+// 내가 실제로 낸(낼) 금액. 이 칸이 없는 옛 응답이면 분담금
+function paidAmount(order: SharedGroupOrderDetailResponse): number {
+    return order.myPayAmount ?? order.myShareAmount ?? 0;
+}
+
 function Participants({ order }: { order: SharedGroupOrderDetailResponse }) {
     const participants: ParticipantResponse[] = order.participants ?? [];
     const paid = participants.filter((p) => p.status === 'PAID').length;

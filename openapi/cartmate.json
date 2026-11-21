@@ -12120,6 +12120,16 @@
           "serverTime": {
             "type": "string",
             "format": "date-time"
+          },
+          "myDiscountAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "내 분담금에 쓴 쿠폰 할인. 결제 전이거나 쿠폰을 안 썼으면 0"
+          },
+          "myPayAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "내가 낼(낸) 금액 = 내 분담금 - 쿠폰 할인"
           }
         }
       },
