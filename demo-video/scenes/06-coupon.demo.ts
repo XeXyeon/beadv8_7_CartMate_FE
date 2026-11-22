@@ -40,7 +40,7 @@ test('장면 06 쿠폰 (E07)', async ({ browser, baseURL, playwright }) => {
             await page.goto(`/products/${post.postId}`);
             await page.waitForTimeout(1500); // 화면이 살아난 뒤에 누른다
             await page.getByRole('button', { name: '바로 구매' }).click();
-            await expect(page).toHaveURL(/\/checkout\?items=/);
+            await expect(page).toHaveURL(/\/checkout\?buyNow=/);
             await fillDelivery(page, '김시연');
             orderId = await submitOrderForm(page);
         });

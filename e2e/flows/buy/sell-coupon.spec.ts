@@ -53,6 +53,8 @@ test.describe('E07 쿠폰 발급 · 사용', () => {
         await admin.getByRole('button', { name: '새 쿠폰 만들기' }).click();
         await admin.getByLabel('쿠폰 이름').fill(couponName);
         await admin.getByLabel('할인 금액 (원)').fill('3000');
+        // 만들기 전에 요약을 확인하는 대화상자가 뜬다
+        admin.once('dialog', (d) => d.accept());
         await admin.getByRole('button', { name: '쿠폰 만들기', exact: true }).click();
         // 목록은 20개씩 끊겨 새 쿠폰이 첫 쪽에 없을 수 있다. 만들어졌는지는 폼이 닫히는 것과 구매자 쿠폰함에 뜨는 것으로 본다
         await expect(admin.getByRole('heading', { name: '새 쿠폰 만들기' })).toBeHidden();
@@ -76,7 +78,7 @@ test.describe('E07 쿠폰 발급 · 사용', () => {
         // 3) 주문서에서 쿠폰 선택 → 결제 금액이 할인된다
         await page.goto(`/products/${post.postId}`);
         await page.getByRole('button', { name: '바로 구매' }).click();
-        await expect(page).toHaveURL(/\/checkout\?items=/);
+        await expect(page).toHaveURL(/\/checkout\?buyNow=/);
         await fillDelivery(page);
         await submitOrderForm(page);
 

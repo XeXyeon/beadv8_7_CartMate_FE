@@ -69,7 +69,7 @@ test('장면 05 구매 (E03 · E04)', async ({ browser, baseURL, playwright }) =
                 await p2.locator('#user-email').fill(ACCOUNTS.buyer1.email);
                 await p2.locator('#user-password').fill(resolvePassword());
                 await p2.getByRole('button', { name: '로그인', exact: true }).click();
-                await expect(p2).toHaveURL(/\/checkout\?items=\d+/, { timeout: 30_000 });
+                await expect(p2).toHaveURL(/\/checkout\?buyNow=\d+/, { timeout: 30_000 });
                 await expect(p2.getByRole('listitem').filter({ hasText: post.name })).toContainText('수량: 2');
                 await fillDelivery(p2, '김시연');
                 order2 = await submitOrderForm(p2);

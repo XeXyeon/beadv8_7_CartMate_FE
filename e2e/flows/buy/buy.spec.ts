@@ -53,7 +53,7 @@ test.describe('구매자 e2e-buyer1', () => {
 
         await page.goto(`/products/${post.postId}`);
         await page.getByRole('button', { name: '바로 구매' }).click();
-        await expect(page).toHaveURL(/\/checkout\?items=/);
+        await expect(page).toHaveURL(/\/checkout\?buyNow=/);
         // 주문서에서도 부족 금액을 알려 준다
         await expect(page.getByText(`예치금이 ${won(40_000)} 부족합니다`)).toBeVisible();
         await fillDelivery(page);
@@ -159,7 +159,7 @@ test.describe('로그인 전 바로 구매', () => {
             await page.getByRole('button', { name: '로그인', exact: true }).click();
 
             // 로그인 뒤 같은 상품 · 수량으로 주문서가 복원된다
-            await expect(page).toHaveURL(/\/checkout\?items=\d+/, { timeout: 30_000 });
+            await expect(page).toHaveURL(/\/checkout\?buyNow=\d+/, { timeout: 30_000 });
             await expect(page.getByRole('listitem').filter({ hasText: post.productName })).toContainText('수량: 2');
             await fillDelivery(page);
             await submitOrderForm(page);

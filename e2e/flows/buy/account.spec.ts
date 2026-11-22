@@ -167,7 +167,7 @@ test.describe('구매자 e2e-buyer1 — 배송지', () => {
             // 새 기본 배송지가 주문서에 자동으로 채워진다
             await page.goto(`/products/${post.postId}`);
             await page.getByRole('button', { name: '바로 구매' }).click();
-            await expect(page).toHaveURL(/\/checkout\?items=/);
+            await expect(page).toHaveURL(/\/checkout\?buyNow=/);
             await expect(page.getByLabel('우편번호')).toHaveValue('04524');
             await expect(page.getByLabel('주소', { exact: true })).toHaveValue('서울특별시 중구 세종대로 110');
             await expect(page.getByLabel('상세 주소 (선택)')).toHaveValue('18층');
@@ -227,7 +227,7 @@ test.describe('판매자 e2e-seller — 출금', () => {
         expect(order.amount).toBe(30_000);
         expect(['PENDING', 'PROCESSING', 'COMPLETED']).toContain(order.status);
         // 신청하면 바로 잔액이 빠지고 이체는 BE가 따로 처리한다(이체가 바로 끝나면 "출금이 완료되었습니다")
-        await expect(page.getByText(/출금을 신청했습니다|출금이 완료되었습니다/)).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByRole('heading', { name: /출금을 신청했습니다|출금이 완료되었습니다/ })).toBeVisible({ timeout: 30_000 });
         await expect(page.getByText(new RegExp(`^${won(30_000)}을 .*\\(으\\)로 (보냅니다|보냈습니다)`))).toBeVisible();
         expect(await walletBalance(request)).toBe(70_000);
 
