@@ -7,7 +7,7 @@ import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ROUTES } from '@/lib/routes';
 import { blurOnWheel } from '@/app/seller/products/new/_components/OptionTable';
-import { hasErrorCode, inviteUrl, managePermissions, MAX_PARTICIPANTS } from '../_lib/sharedGroupPurchase';
+import { hasErrorCode, inviteUrl, isOrderCreated, managePermissions, MAX_PARTICIPANTS } from '../_lib/sharedGroupPurchase';
 import { useSharedPurchaseActions } from '../_lib/useSharedPurchaseActions';
 import SharedPayLink from '../../checkout/shared/_components/SharedPayLink';
 import CopyLinkButton from './CopyLinkButton';
@@ -58,7 +58,7 @@ export default function SharedManagePanel({ id, purchase, deadlinePassed, action
         const count = purchase.participantCount ?? 0;
         if (!window.confirm(`지금 마감할까요?\n참여자 ${count}명, 상품 ${itemCount}종으로 공동 주문이 만들어지고 각자 결제가 시작됩니다. 마감 후에는 품목과 인원을 바꿀 수 없습니다.`)) return;
         setError(null);
-        // 마감되면 BE가 같은 요청 안에서 공동 주문을 만든다. 상세가 마감 상태로 바뀌며 내 몫 결제 버튼(SharedPayLink)이 나타난다.
+        // 마감되면 BE가 같은 요청 안에서 공동 주문을 만든다(ORDER_CREATED). 상세가 그 상태로 바뀌며 내 몫 결제 버튼(SharedPayLink)이 나타난다.
         actions.close.mutate({ id }, { onSuccess: () => router.refresh(), onError: onError('마감하지 못했습니다.') });
     };
 
@@ -85,13 +85,14 @@ export default function SharedManagePanel({ id, purchase, deadlinePassed, action
         );
     };
 
-    if (!isActive && purchase.status !== 'CLOSED' && !perm.canDuplicate) return null;
+    const ordered = isOrderCreated(purchase.status);
+    if (!isActive && !ordered && !perm.canDuplicate) return null;
 
     return (
         <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-space-lg flex flex-col gap-space-md">
             <h2 className="font-headline-sm text-headline-sm text-primary">{purchase.viewerIsCreator ? '공동구매 관리' : '참여 관리'}</h2>
 
-            {purchase.status === 'CLOSED' && (
+            {ordered && (
                 <div className="bg-surface-container-high rounded-lg p-space-md flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
                     <div className="flex items-start gap-space-xs">
                         <Icon name="account_balance_wallet" className="text-primary text-[22px] shrink-0" />

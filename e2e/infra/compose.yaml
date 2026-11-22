@@ -1,0 +1,327 @@
+# 운영(k3s) 동등 로컬 환경. 값의 출처는 BE 저장소 k8s/infra/*.yaml · k8s/config.yaml · k8s/*-service.yaml
+# 호스트 포트는 1만 단위 대역(BE 1898x, MySQL 1330x, Redis 1637x, ES 19200, Kafka 19092)만 쓴다.
+# 실행은 `npm run e2e:env:up` (BE 소스 준비 · 이미지 빌드 · 기동 · 준비 확인을 e2e/infra/env.sh 가 맡는다)
+name: cartmate-e2e
+
+x-mysql: &mysql
+  image: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
+  restart: unless-stopped
+  mem_limit: 384m
+  environment: &mysql-env
+    TZ: Asia/Seoul
+    MYSQL_ROOT_PASSWORD: e2e-root
+    MYSQL_USER: cartmate
+    MYSQL_PASSWORD: cartmate
+  healthcheck:
+    test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pe2e-root --silent"]
+    interval: 5s
+    timeout: 5s
+    retries: 40
+
+x-redis: &redis
+  image: redis:7.4.11-alpine@sha256:d9436322172a5b482c187bf1f363d3c4fea086fcca6b9c8a94de8f0f39ed3193
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "redis-cli -a e2e-redis --no-auth-warning ping | grep -q PONG"]
+    interval: 5s
+    timeout: 3s
+    retries: 20
+
+# 서비스 5개 공통 환경 변수 (k8s/config.yaml + cartmate-app-secret 대응)
+x-app-env: &app-env
+  SPRING_PROFILES_ACTIVE: prod
+  TZ: Asia/Seoul
+  # 컨테이너 한도에 맞춘 힙. 운영은 MaxRAMPercentage=60 이지만 로컬은 합계를 8GiB 안에 두려고 -Xmx 로 고정한다
+  JAVA_TOOL_OPTIONS: "-Xmx${E2E_JVM_XMX:-448m} -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Seoul"
+  JWT_SECRET: e2e-local-jwt-secret-key-must-be-at-least-32-bytes
+  INTERNAL_API_KEY: e2e-internal-key
+  MEMBER_SERVICE_BASE_URL: http://member-service:8981
+  PRODUCT_SERVICE_BASE_URL: http://product-service:8982
+  PRODUCT_URL: http://product-service:8982
+  PAYMENT_BASE_URL: http://payment-service:8983
+  ETC_SERVICE_BASE_URL: http://etc-service:8984
+  ORDER_SERVICE_BASE_URL: http://order-service:8986
+  REDIS_CACHE_HOST: redis-cache
+  REDIS_CACHE_PORT: "6379"
+  REDIS_CORE_HOST: redis-core
+  REDIS_CORE_PORT: "6379"
+  REDIS_DATABASE: "1"
+  REDIS_PASSWORD: e2e-redis
+  KAFKA_ENABLED: "true"
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  TRACING_SAMPLING: "0"
+  # 오픈뱅킹은 fake 고정(실제 계좌 검증 없음). 계좌번호 끝 0000 → 불일치, 9999 → 503, 그 외 통과. live 로 바꾸지 않는다
+  OPENBANKING_MODE: fake
+  # 토스 테스트 키(.env.e2e). 비어 있으면 토스 승인만 실패한다
+  TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+
+x-svc: &svc
+  restart: unless-stopped
+  mem_limit: ${E2E_SVC_MEM:-768m}
+  healthcheck:
+    interval: 10s
+    timeout: 5s
+    retries: 60
+    start_period: 40s
+
+services:
+  # ---- 데이터 저장소 ----
+  mysql-member:
+    <<: *mysql
+    environment: { <<: *mysql-env, MYSQL_DATABASE: cartmate_member }
+    ports: ["13306:3306"]
+    volumes: [ "mysql-member:/var/lib/mysql", "./mysql/cartmate.cnf:/etc/mysql/conf.d/cartmate.cnf:ro" ]
+  mysql-product:
+    <<: *mysql
+    environment: { <<: *mysql-env, MYSQL_DATABASE: cartmate_product }
+    ports: ["13307:3306"]
+    volumes: [ "mysql-product:/var/lib/mysql", "./mysql/cartmate.cnf:/etc/mysql/conf.d/cartmate.cnf:ro" ]
+  mysql-order:
+    <<: *mysql
+    environment: { <<: *mysql-env, MYSQL_DATABASE: cartmate_order }
+    ports: ["13308:3306"]
+    volumes: [ "mysql-order:/var/lib/mysql", "./mysql/cartmate.cnf:/etc/mysql/conf.d/cartmate.cnf:ro" ]
+  mysql-payment:
+    <<: *mysql
+    environment: { <<: *mysql-env, MYSQL_DATABASE: cartmate_payment }
+    ports: ["13309:3306"]
+    volumes: [ "mysql-payment:/var/lib/mysql", "./mysql/cartmate.cnf:/etc/mysql/conf.d/cartmate.cnf:ro" ]
+  mysql-etc:
+    <<: *mysql
+    environment: { <<: *mysql-env, MYSQL_DATABASE: cartmate_etc }
+    ports: ["13310:3306"]
+    volumes: [ "mysql-etc:/var/lib/mysql", "./mysql/cartmate.cnf:/etc/mysql/conf.d/cartmate.cnf:ro" ]
+
+  redis-cache:
+    <<: *redis
+    mem_limit: 300m
+    command: ["redis-server", "--requirepass", "e2e-redis", "--maxmemory", "192mb", "--maxmemory-policy", "allkeys-lru", "--save", "", "--appendonly", "no"]
+    ports: ["16379:6379"]
+  redis-core:
+    <<: *redis
+    mem_limit: 300m
+    command: ["redis-server", "--requirepass", "e2e-redis", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction", "--save", "", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports: ["16380:6379"]
+    volumes: [ "redis-core:/data" ]
+
+  kafka:
+    image: apache/kafka:4.3.2@sha256:852a0d49fc4e656b022e7f23785411802c9a088c78a7c5e39f33969de9c227a7
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      CLUSTER_ID: "KBDjAtTXR8ivS8nJk98T9Q"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENERS: "INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094"
+      # 컨테이너끼리는 kafka:9092, 호스트(테스트 코드 · 디버깅)는 localhost:19092
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:9092,EXTERNAL://localhost:19092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: "1"
+      KAFKA_MIN_INSYNC_REPLICAS: "1"
+      KAFKA_NUM_PARTITIONS: "3"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: "72"
+      KAFKA_LOG_RETENTION_BYTES: "1073741824"
+      KAFKA_LOG_SEGMENT_BYTES: "268435456"
+      KAFKA_NUM_NETWORK_THREADS: "1"
+      KAFKA_NUM_IO_THREADS: "2"
+      KAFKA_BACKGROUND_THREADS: "2"
+      KAFKA_LOG_CLEANER_DEDUPE_BUFFER_SIZE: "16777216"
+      KAFKA_HEAP_OPTS: "-Xms${E2E_KAFKA_HEAP:-512m} -Xmx${E2E_KAFKA_HEAP:-512m}"
+      KAFKA_JVM_PERFORMANCE_OPTS: "-XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:MaxDirectMemorySize=128m -XX:+ExitOnOutOfMemoryError"
+    ports: ["19092:9094"]
+    volumes: [ "kafka:/var/lib/kafka/data" ]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  elasticsearch:
+    build: ./elasticsearch
+    image: cartmate-e2e-elasticsearch:9.5.5
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      discovery.type: single-node
+      cluster.name: cartmate-es
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      ELASTIC_PASSWORD: e2e-elastic
+      xpack.ml.enabled: "false"
+      ingest.geoip.downloader.enabled: "false"
+      ES_JAVA_OPTS: "-Xms${E2E_ES_HEAP:-512m} -Xmx${E2E_ES_HEAP:-512m}"
+    ports: ["19200:9200"]
+    volumes: [ "elasticsearch:/usr/share/elasticsearch/data" ]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -u elastic:e2e-elastic 'http://localhost:9200/_cluster/health?local=true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+
+  # ---- BE 서비스 5개 (이미지는 env.sh 가 BE 소스로 빌드한다: cartmate-e2e-<서비스>) ----
+  member-service:
+    <<: *svc
+    image: cartmate-e2e-member-service
+    depends_on:
+      mysql-member: { condition: service_healthy }
+      redis-cache: { condition: service_healthy }
+      redis-core: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:mysql://mysql-member:3306/cartmate_member?serverTimezone=Asia/Seoul
+      DB_USERNAME: cartmate
+      DB_PASSWORD: cartmate
+      MFA_CODE_SECRET: e2e-local-mfa-code-secret-at-least-32-chars
+      # 운영은 Secret. 로컬은 BE 기본값(application.yaml)과 같은 값을 명시해 bootstrap이 관리자 OTP를 암호화해 심을 수 있게 한다
+      MFA_OTP_ENCRYPTION_KEY: Y2FydG1hdGUtbG9jYWwtb3RwLWtleS0zMmJ5dGVzISE=
+      ACCOUNT_ENCRYPTION_KEY: Y2FydG1hdGUtbG9jYWwtcGF5b3V0LWFjY3Qta2V5ISE=
+      MAIL_FROM: no-reply@cartmate.local
+      # 운영은 SMTP 발송. 로컬은 보낼 곳이 없어 끄고(코드는 member 로그에 찍힌다) 신뢰 기기로 2차 인증을 건너뛴다
+      CARTMATE_MAIL_ENABLED: "false"
+      MAIL_ENABLED: "false"
+    ports: ["18981:8981"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8981/actuator/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 40s
+
+  product-service:
+    <<: *svc
+    image: cartmate-e2e-product-service
+    depends_on:
+      mysql-product: { condition: service_healthy }
+      redis-cache: { condition: service_healthy }
+      redis-core: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      elasticsearch: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      # 운영과 다른 점: prod 프로필은 S3(AWS)에만 사진을 올려 로컬에서 판매글 등록이 안 된다.
+      #   dev 프로필(DevImageStorage, 컨테이너 안 ./uploads)로 띄우고 DB는 Spring 표준 환경 변수로 넣는다.
+      #   application-dev.yaml 은 gitignore 라 이미지에 없다. 그 밖의 설정은 운영과 같다
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-product:3306/cartmate_product?serverTimezone=Asia/Seoul
+      SPRING_DATASOURCE_USERNAME: cartmate
+      SPRING_DATASOURCE_PASSWORD: cartmate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update   # dev yaml 이 켜던 값(운영 yaml 은 JPA_DDL_AUTO 기본 update)
+      PRODUCT_URL: http://localhost:9982
+      image.local.dir: /tmp/uploads
+      image.local.url: http://localhost:18982/images
+      ES_URL: http://elasticsearch:9200
+      ES_USERNAME: elastic
+      ES_PASSWORD: e2e-elastic
+    ports: ["18982:8982"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8982/actuator/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 40s
+
+  # 토스 가짜 서버(e2e/infra/toss-stub). 카드사 인증을 자동화할 수 없어 E02 충전 승인만 흉내 낸다 — 운영과 다른 점
+  toss-stub:
+    image: node:22.12.0-alpine3.20
+    restart: unless-stopped
+    mem_limit: 64m
+    working_dir: /app
+    command: ["node", "server.mjs"]
+    volumes: [ "./toss-stub:/app:ro" ]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  payment-service:
+    <<: *svc
+    image: cartmate-e2e-payment-service
+    depends_on:
+      toss-stub: { condition: service_healthy }
+      mysql-payment: { condition: service_healthy }
+      redis-cache: { condition: service_healthy }
+      redis-core: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:mysql://mysql-payment:3306/cartmate_payment?serverTimezone=Asia/Seoul
+      DB_USERNAME: cartmate
+      DB_PASSWORD: cartmate
+      WALLET_ACCOUNT_ENCRYPTION_KEY: Y2FydG1hdGUtbG9jYWwtd2FsbGV0LWFjY3Qta2V5ISE=
+      # 운영은 manual(관리자 수동 송금). 로컬은 fake 라 출금(E19)이 자동으로 끝난다 — 운영과 다른 값
+      WALLET_TRANSFER_MODE: fake
+      # 토스 승인 · 조회를 호출하는 곳을 컨테이너 안의 가짜 토스(toss-stub)로 돌린다. 운영은 https://api.tosspayments.com — 운영과 다른 값
+      CUSTOM_WALLET_TOSS_BASEURL: http://toss-stub:8080
+      # 정산 지급 cron(기본 매일 00:10). E2E 가 짧게 돌릴 수 있게 연다: E2E_PAYOUT_CRON="0 * * * * *" npm run e2e:env:up
+      CUSTOM_PAYOUT_CRON: "${E2E_PAYOUT_CRON:-0 10 0 * * *}"
+    ports: ["18983:8983"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8983/actuator/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 40s
+
+  etc-service:
+    <<: *svc
+    image: cartmate-e2e-etc-service
+    depends_on:
+      mysql-etc: { condition: service_healthy }
+      redis-cache: { condition: service_healthy }
+      redis-core: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      DB_URL: jdbc:mysql://mysql-etc:3306/cartmate_etc?serverTimezone=Asia/Seoul
+      DB_USERNAME: cartmate
+      DB_PASSWORD: cartmate
+      # 운영 기본 300초. E2E 가 5분씩 기다리지 않게 줄인다 — 운영과 다른 값
+      CUSTOM_DELIVERY_AUTOCOMPLETE_DELAYSECONDS: "${E2E_DELIVERY_COMPLETE_SECONDS:-10}"
+    ports: ["18984:8984"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8984/actuator/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 40s
+
+  order-service:
+    <<: *svc
+    image: cartmate-e2e-order-service
+    depends_on:
+      mysql-order: { condition: service_healthy }
+      redis-core: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      ORDER_DB_URL: jdbc:mysql://mysql-order:3306/cartmate_order?serverTimezone=Asia/Seoul
+      ORDER_DB_USERNAME: cartmate
+      ORDER_DB_PASSWORD: cartmate
+    ports: ["18986:8986"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8986/actuator/health/readiness >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 40s
+
+volumes:
+  mysql-member:
+  mysql-product:
+  mysql-order:
+  mysql-payment:
+  mysql-etc:
+  redis-core:
+  kafka:
+  elasticsearch:

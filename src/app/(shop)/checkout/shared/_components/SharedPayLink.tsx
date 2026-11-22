@@ -8,7 +8,15 @@ import { ROUTES } from '@/lib/routes';
 // 마감된 공동구매 상세에서 쓰는 "내 몫 결제하기" 버튼.
 // 공동구매 ID만 알고 있으므로 내 공동 주문 목록에서 해당 공동구매의 주문을 찾아 결제 화면으로 보낸다.
 export default function SharedPayLink({ sharedGroupPurchaseId, className = '' }: { sharedGroupPurchaseId: number; className?: string }) {
-    const query = useGetMyList3();
+    // 마감 직후에는 공동 주문이 목록에 아직 없을 수 있어(BE가 이어서 만든다) 찾을 때까지 2초마다 다시 받는다. 1분이 지나면 멈춘다
+    const query = useGetMyList3({
+        query: {
+            refetchInterval: (q) =>
+                q.state.data?.data?.some((o) => o.sharedGroupPurchaseId === sharedGroupPurchaseId) || q.state.dataUpdateCount >= 30
+                    ? false
+                    : 2_000,
+        },
+    });
     const order = query.data?.data?.find((o) => o.sharedGroupPurchaseId === sharedGroupPurchaseId);
 
     const base = `h-12 bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center gap-space-xs hover:opacity-90 ${className}`;
