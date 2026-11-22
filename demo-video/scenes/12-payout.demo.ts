@@ -56,20 +56,19 @@ test('장면 12 정산과 출금 (E30 · E19)', async ({ browser, baseURL, playw
         });
         await b.beat('판매 대금은 예치금 관리 화면에서 확인하고 출금할 수 있습니다. 출금하려면 먼저 이메일 인증으로 출금 계좌를 등록합니다.', async () => {
             await b.page.goto('/mypage/deposit/withdraw');
-            await expect(b.page.getByText('출금 계좌 등록')).toBeVisible();
+            await b.page.getByRole('button', { name: '출금 계좌 등록' }).click();
             const since = Date.now();
             await b.page.getByRole('button', { name: '인증번호 받기' }).click();
-            await b.page.locator('#payout-email-code').fill(await waitForMailCode(m.email, since));
-            await b.page.getByRole('button', { name: '인증하기' }).click();
+            await b.page.locator('#payout-code').fill(await waitForMailCode(m.email, since));
+            await b.page.getByRole('button', { name: '확인', exact: true }).click();
             await b.page.locator('#payout-bank').selectOption('국민은행');
             await b.page.locator('#payout-holder').fill(m.nickname);
-            await b.page.locator('#payout-account-number').fill('1002000000001');
+            await b.page.locator('#payout-number').fill('1002000000001');
             await b.page.getByRole('button', { name: '계좌 등록' }).click();
             await expect(b.page.getByRole('button', { name: '계좌 변경' })).toBeVisible({ timeout: 20_000 });
         });
         await b.beat('출금할 금액을 입력하고 신청하면 예치금에서 바로 차감되고, 이체는 서버가 처리합니다.', async () => {
             await b.page.locator('#withdraw-amount').fill('30000');
-            await b.page.getByRole('button', { name: '출금 요청' }).click();
             await b.page.getByRole('button', { name: '출금 신청' }).click();
             await expect(b.page.getByRole('heading', { name: /출금을 신청했습니다|출금이 완료되었습니다/ })).toBeVisible({ timeout: 30_000 });
         });

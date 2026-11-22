@@ -194,22 +194,23 @@ test.describe('구매자 e2e-buyer1 — 배송지', () => {
 test.describe('판매자 e2e-seller — 출금', () => {
     test.use({ storageState: authFile('seller') });
 
-    // 출금 계좌 등록(이메일 인증 → 계좌) → 출금 신청 한 번 → 잔액 차감 · 거래내역(이슈 QA-3#1 · QA-3#2)
+    // 출금 계좌 등록(다이얼로그: 이메일 인증 → 계좌) → 출금 신청 한 번 → 잔액 차감 · 거래내역
     test('E19 예치금 출금', async ({ page, request }) => {
         await page.goto('/mypage/deposit/withdraw');
         // 출금 계좌가 없으면 화면에서 등록한다. 이미 있으면 건너뛴다(인증번호 재발송은 60초 · 30분에 5번으로 제한돼 있다)
         const mine = await request.get('/api/members/me/payout-account');
         if (!(await mine.json()).data) {
-            await expect(page.getByText('출금 계좌 등록')).toBeVisible();
-            await expect(page.getByRole('button', { name: '출금 요청' })).toBeDisabled();
+            await expect(page.getByText('출금하려면 먼저 본인 명의 계좌를 등록해주세요.')).toBeVisible();
+            await expect(page.getByRole('button', { name: '출금 신청' })).toBeDisabled();
+            await page.getByRole('button', { name: '출금 계좌 등록' }).click();
             const since = Date.now();
             await page.getByRole('button', { name: '인증번호 받기' }).click();
             const code = await waitForMailCode(ACCOUNTS.seller.email, since);
-            await page.locator('#payout-email-code').fill(code);
-            await page.getByRole('button', { name: '인증하기' }).click();
+            await page.locator('#payout-code').fill(code);
+            await page.getByRole('button', { name: '확인', exact: true }).click();
             await page.locator('#payout-bank').selectOption('국민은행');
             await page.locator('#payout-holder').fill('e2e판매자');
-            await page.locator('#payout-account-number').fill('1002000000001');
+            await page.locator('#payout-number').fill('1002000000001');
             await page.getByRole('button', { name: '계좌 등록' }).click();
             await expect(page.getByRole('button', { name: '계좌 변경' })).toBeVisible({ timeout: 20_000 });
             expect((await (await request.get('/api/members/me/payout-account')).json()).data?.bankName).toBe('국민은행');
@@ -217,8 +218,7 @@ test.describe('판매자 e2e-seller — 출금', () => {
         await setWalletBalance('seller', 100_000);
         await page.goto('/mypage/deposit/withdraw');
         await page.locator('#withdraw-amount').fill('30000');
-        await page.getByRole('button', { name: '출금 요청' }).click();
-        // 확인 화면은 화면 안에서만 거치고, "출금 신청"에서 BE를 한 번만 부른다
+        // 신청 한 번으로 끝난다(별도 확인 화면 없음)
         const requested = page.waitForResponse((r) => r.url().endsWith('/api/wallets/me/withdraws') && r.request().method() === 'POST');
         await page.getByRole('button', { name: '출금 신청' }).click();
         const res = await requested;
@@ -228,7 +228,7 @@ test.describe('판매자 e2e-seller — 출금', () => {
         expect(['PENDING', 'PROCESSING', 'COMPLETED']).toContain(order.status);
         // 신청하면 바로 잔액이 빠지고 이체는 BE가 따로 처리한다(이체가 바로 끝나면 "출금이 완료되었습니다")
         await expect(page.getByText(/출금을 신청했습니다|출금이 완료되었습니다/)).toBeVisible({ timeout: 30_000 });
-        await expect(page.getByText(new RegExp(`^${won(30_000)}을 .*출금했습니다`))).toBeVisible();
+        await expect(page.getByText(new RegExp(`^${won(30_000)}을 .*\\(으\\)로 (보냅니다|보냈습니다)`))).toBeVisible();
         expect(await walletBalance(request)).toBe(70_000);
 
         // 거래내역에 출금(WITHDRAW) 항목이 보인다
