@@ -27,4 +27,8 @@ export interface SharedGroupOrderDetailResponse {
   participants?: ParticipantResponse[];
   items?: SharedGroupOrderDetailItemResponse[];
   serverTime?: string;
+  /** 내 분담금에 쓴 쿠폰 할인. 결제 전이거나 쿠폰을 안 썼으면 0 */
+  myDiscountAmount?: number;
+  /** 내가 낼(낸) 금액 = 내 분담금 - 쿠폰 할인 */
+  myPayAmount?: number;
 }

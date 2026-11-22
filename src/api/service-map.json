@@ -17,7 +17,7 @@
   },
   "payment": {
     "port": 8983,
-    "prefixes": ["/api/payments", "/api/wallets", "/api/settlements", "/api/admin/payments"]
+    "prefixes": ["/api/payments", "/api/wallets", "/api/settlements", "/api/admin/payments", "/api/admin/wallets"]
   },
   "etc": {
     "port": 8984,

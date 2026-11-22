@@ -2258,31 +2258,29 @@
             }
           }
         }
-      }
-    },
-    "/api/wallets/me/withdraws/confirm": {
-      "post": {
+      },
+      "get": {
         "tags": [
           "wallet-controller"
         ],
-        "operationId": "walletWithdrawConfirm",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WalletWithdrawConfirmRequest"
-              }
+        "operationId": "getMyWithdraws",
+        "parameters": [
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
             }
-          },
-          "required": true
-        },
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/RsDataWalletBalanceResponse"
+                  "$ref": "#/components/schemas/RsDataPageWalletWithdrawOrderResponse"
                 }
               }
             }
@@ -3395,6 +3393,36 @@
         }
       }
     },
+    "/api/orders/direct": {
+      "post": {
+        "tags": [
+          "order-controller"
+        ],
+        "operationId": "createDirect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectOrderCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataOrderCreateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/orders/{orderId}/payment": {
       "post": {
         "tags": [
@@ -3807,7 +3835,7 @@
         "tags": [
           "shared-group-order-controller"
         ],
-        "summary": "공동 주문 분담금 예치금 결제",
+        "summary": "공동 주문 분담금 예치금 결제 (플랫폼 쿠폰 선택)",
         "operationId": "paySharedGroupOrder",
         "parameters": [
           {
@@ -3836,6 +3864,38 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/RsDataPaymentResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/group-orders/shared/{id}/coupons": {
+      "get": {
+        "tags": [
+          "shared-group-order-controller"
+        ],
+        "summary": "분담금 결제에 쓸 수 있는 내 쿠폰 목록 (대상 금액은 내 분담금, 판매자 쿠폰은 쓸 수 없음)",
+        "operationId": "sharedGroupOrderCouponOptions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataListCouponOption"
                 }
               }
             }
@@ -5133,6 +5193,344 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/RsDataOrderReturnPreviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/me/payout-account": {
+      "get": {
+        "tags": [
+          "member-payout-account-controller"
+        ],
+        "operationId": "myPayoutAccount",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataPayoutAccountResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "member-payout-account-controller"
+        ],
+        "operationId": "registerPayoutAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataPayoutAccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/me/payout-account/email-code": {
+      "post": {
+        "tags": [
+          "member-payout-account-controller"
+        ],
+        "operationId": "sendPayoutAccountCode",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataInteger"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/me/payout-account/email-code/verify": {
+      "post": {
+        "tags": [
+          "member-payout-account-controller"
+        ],
+        "operationId": "verifyPayoutAccountCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutAccountCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/me/payout-account/from-seller": {
+      "put": {
+        "tags": [
+          "member-payout-account-controller"
+        ],
+        "operationId": "registerPayoutAccountFromSeller",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataPayoutAccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallets/me/withdraws/{withdrawOrderId}/cancel": {
+      "post": {
+        "tags": [
+          "wallet-controller"
+        ],
+        "operationId": "cancelWithdraw",
+        "parameters": [
+          {
+            "name": "withdrawOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataWalletBalanceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/wallets/withdraws": {
+      "get": {
+        "tags": [
+          "admin-wallet-withdraw-controller"
+        ],
+        "operationId": "getAdminWithdraws",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PROCESSING",
+                "COMPLETED",
+                "CANCELED",
+                "FAILED"
+              ]
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataPageAdminWithdrawOrderResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/wallets/withdraws/{withdrawOrderId}/account": {
+      "get": {
+        "tags": [
+          "admin-wallet-withdraw-controller"
+        ],
+        "operationId": "getAdminWithdrawAccount",
+        "parameters": [
+          {
+            "name": "withdrawOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataAdminWithdrawAccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/wallets/withdraws/{withdrawOrderId}/start": {
+      "post": {
+        "tags": [
+          "admin-wallet-withdraw-controller"
+        ],
+        "operationId": "startAdminWithdraw",
+        "parameters": [
+          {
+            "name": "withdrawOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/wallets/withdraws/{withdrawOrderId}/complete": {
+      "post": {
+        "tags": [
+          "admin-wallet-withdraw-controller"
+        ],
+        "operationId": "completeAdminWithdraw",
+        "parameters": [
+          {
+            "name": "withdrawOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminWithdrawCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataVoid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/wallets/withdraws/{withdrawOrderId}/fail": {
+      "post": {
+        "tags": [
+          "admin-wallet-withdraw-controller"
+        ],
+        "operationId": "failAdminWithdraw",
+        "parameters": [
+          {
+            "name": "withdrawOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminWithdrawFailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RsDataVoid"
                 }
               }
             }
@@ -8329,21 +8727,38 @@
           "amount": {
             "type": "integer",
             "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "CANCELED",
+              "FAILED"
+            ]
+          },
+          "statusLabel": {
+            "type": "string"
+          },
+          "bankName": {
+            "type": "string"
+          },
+          "accountNumberMasked": {
+            "type": "string"
+          },
+          "resultMessage": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
-      },
-      "WalletWithdrawConfirmRequest": {
-        "type": "object",
-        "properties": {
-          "withdrawOrderId": {
-            "type": "integer",
-            "format": "int64",
-            "exclusiveMinimum": 0
-          }
-        },
-        "required": [
-          "withdrawOrderId"
-        ]
       },
       "RsDataWalletBalanceResponse": {
         "type": "object",
@@ -10603,6 +11018,10 @@
         "properties": {
           "teamDeliveryAddress": {
             "$ref": "#/components/schemas/TeamDeliveryAddress"
+          },
+          "memberCouponId": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -11731,6 +12150,16 @@
           "serverTime": {
             "type": "string",
             "format": "date-time"
+          },
+          "myDiscountAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "내 분담금에 쓴 쿠폰 할인. 결제 전이거나 쿠폰을 안 썼으면 0"
+          },
+          "myPayAmount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "내가 낼(낸) 금액 = 내 분담금 - 쿠폰 할인"
           }
         }
       },
@@ -12186,6 +12615,375 @@
             "format": "int32"
           }
         }
+      },
+      "PayoutAccountRequest": {
+        "type": "object",
+        "properties": {
+          "bankName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accountHolder": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1
+          },
+          "accountNumber": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{10,16}$"
+          }
+        },
+        "required": [
+          "accountHolder",
+          "accountNumber",
+          "bankName"
+        ]
+      },
+      "PayoutAccountCodeRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{6}$"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "PayoutAccountResponse": {
+        "type": "object",
+        "properties": {
+          "bankName": {
+            "type": "string"
+          },
+          "accountHolder": {
+            "type": "string"
+          },
+          "maskedAccountNumber": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RsDataPayoutAccountResponse": {
+        "type": "object",
+        "properties": {
+          "resultCode": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PayoutAccountResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RsDataInteger": {
+        "type": "object",
+        "properties": {
+          "resultCode": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "data": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PageWalletWithdrawOrderResponse": {
+        "type": "object",
+        "properties": {
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WalletWithdrawOrderResponse"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RsDataPageWalletWithdrawOrderResponse": {
+        "type": "object",
+        "properties": {
+          "resultCode": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageWalletWithdrawOrderResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminWithdrawOrderResponse": {
+        "type": "object",
+        "properties": {
+          "withdrawOrderId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "CANCELED",
+              "FAILED"
+            ]
+          },
+          "statusLabel": {
+            "type": "string"
+          },
+          "transferId": {
+            "type": "string"
+          },
+          "bankName": {
+            "type": "string"
+          },
+          "accountHolder": {
+            "type": "string"
+          },
+          "accountNumberMasked": {
+            "type": "string"
+          },
+          "resultMessage": {
+            "type": "string"
+          },
+          "processedBy": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reviewRequested": {
+            "type": "boolean"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "processingStartedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageAdminWithdrawOrderResponse": {
+        "type": "object",
+        "properties": {
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminWithdrawOrderResponse"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RsDataPageAdminWithdrawOrderResponse": {
+        "type": "object",
+        "properties": {
+          "resultCode": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageAdminWithdrawOrderResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminWithdrawAccountResponse": {
+        "type": "object",
+        "properties": {
+          "withdrawOrderId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bankName": {
+            "type": "string"
+          },
+          "accountHolder": {
+            "type": "string"
+          },
+          "accountNumber": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RsDataAdminWithdrawAccountResponse": {
+        "type": "object",
+        "properties": {
+          "resultCode": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminWithdrawAccountResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdminWithdrawCompleteRequest": {
+        "type": "object",
+        "properties": {
+          "memo": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 0
+          }
+        }
+      },
+      "AdminWithdrawFailRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "DirectOrderCreateRequest": {
+        "type": "object",
+        "properties": {
+          "inventoryId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 999,
+            "minimum": 1
+          },
+          "deliveryAddress": {
+            "$ref": "#/components/schemas/DeliveryAddressRequest"
+          }
+        },
+        "required": [
+          "deliveryAddress",
+          "inventoryId"
+        ]
       }
     }
   }

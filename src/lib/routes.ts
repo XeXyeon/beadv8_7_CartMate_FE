@@ -8,6 +8,9 @@ export const ROUTES = {
     product: (id: string | number = 1) => `/products/${id}`,
     cart: '/cart',
     checkout: '/checkout',
+    // 바로 구매 주문서: 장바구니를 거치지 않고 고른 재고 · 수량으로 바로 주문한다
+    checkoutBuyNow: (postId: number, inventoryId: number, quantity: number) =>
+        `/checkout?buyNow=${inventoryId}&qty=${quantity}&post=${postId}`,
     checkoutShared: (orderId: string | number) => `/checkout/shared?order=${orderId}`,
 
     groupPurchases: '/group-purchases',
@@ -66,6 +69,10 @@ export const ROUTES = {
     adminPost: (id: string | number = 1) => `/admin/posts/${id}`,
     adminNotices: '/admin/notices',
     adminCoupons: '/admin/coupons',
+    adminWithdraws: '/admin/wallets/withdraws',
     adminCartDemands: '/admin/carts/demands',
     adminIndividualGroupPurchaseDashboard: (id: string | number) => `/admin/carts/group-purchases/individual/${id}`,
 } as const;
+
+// 판매자 센터로 되돌려 보낼 때 붙이는 표시. 이 표시가 있는 주소가 또 막히면 다시 시도하지 않는다
+export const ROLE_REFRESHED_PARAM = 'roleRefreshed';

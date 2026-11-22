@@ -23,11 +23,25 @@ export default function HeaderAccountNav() {
         // 로그인 확인 중에는 자리만 차지하게 숨겨서, 응답 후 버튼이 바뀌며 깜빡이지 않게 한다.
         <div className={`ml-auto flex items-center gap-1 md:ml-0${isLoading ? ' invisible' : ''}`} aria-hidden={isLoading}>
             {user && (
-                <div className="hidden lg:block">
-                    <Button label="예치금" href={ROUTES.deposit} variant="ghost" size="sm" icon={<Icon name="account_balance_wallet" />}>
-                        예치금 <DepositAmount />
-                    </Button>
-                </div>
+                <>
+                    {/* 넓은 화면: "예치금 46,000원" */}
+                    <div className="hidden lg:block">
+                        <Button label="예치금" href={ROUTES.deposit} variant="ghost" size="sm" icon={<Icon name="account_balance_wallet" />}>
+                            예치금 <DepositAmount />
+                        </Button>
+                    </div>
+                    {/* 좁은 화면: 다른 버튼처럼 아이콘만. 누르면 예치금 화면으로 간다 */}
+                    <div className="lg:hidden">
+                        <Button
+                            label="예치금"
+                            href={ROUTES.deposit}
+                            variant="ghost"
+                            size="sm"
+                            icon={<Icon name="account_balance_wallet" />}
+                            isIconOnly
+                        />
+                    </div>
+                </>
             )}
             <div className="relative">
                 <ResponsiveButton label="장바구니" href={ROUTES.cart} icon="shopping_bag" />

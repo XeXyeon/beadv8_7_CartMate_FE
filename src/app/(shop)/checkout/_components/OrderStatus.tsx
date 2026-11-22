@@ -6,7 +6,6 @@ import { keepPreviousData, useIsFetching, useQueryClient } from '@tanstack/react
 import { Button } from '@astryxdesign/core/Button';
 import { Card } from '@astryxdesign/core/Card';
 import { Heading } from '@astryxdesign/core/Heading';
-import { getGetCartQueryKey } from '@/api/generated/cart-controller/cart-controller';
 import type { OrderDetailItemResponse, OrderDetailResponse } from '@/api/generated/model';
 import { getGetMyCouponsQueryKey } from '@/api/generated/coupon-controller/coupon-controller';
 import {
@@ -18,7 +17,7 @@ import {
     usePayOrder,
     usePreview,
 } from '@/api/generated/order-controller/order-controller';
-import { getGetByOrderQueryKey } from '@/api/generated/payment-controller/payment-controller';
+import { getGetByOrderQueryKey, useGetByOrder } from '@/api/generated/payment-controller/payment-controller';
 import {
     getGetMyWalletQueryKey,
     getGetMyWalletTransactionsQueryKey,
@@ -27,6 +26,7 @@ import {
 import { errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { ORDER_CANCEL_MESSAGE } from '@/lib/cancelReason';
+import { requestCartSync } from '@/lib/cartSync';
 import { formatDateTime } from '@/lib/format';
 import { ROUTES } from '@/lib/routes';
 import { formatPrice } from '@/lib/salesPost';
@@ -70,9 +70,10 @@ function OrderPayment({ orderId, order }: { orderId: number; order: OrderDetailR
     const pay = usePayOrder({
         mutation: {
             onSuccess: () => {
-                // 결제되면 BE가 주문한 상품을 장바구니에서 지우고 예치금을 차감한다. 헤더 배지와 주문 화면이 따라오도록 함께 갱신한다.
+                // 결제되면 BE가 예치금을 차감하고, 결제 이벤트를 받은 뒤에 주문한 상품을 장바구니에서 지운다.
+                // 장바구니는 지금 다시 받으면 지우기 전 값이 오므로 헤더가 바뀔 때까지 확인하게 하고, 나머지는 바로 갱신한다.
+                requestCartSync(queryClient, (order.items ?? []).flatMap((item) => item.inventoryId ?? []));
                 for (const queryKey of [
-                    getGetCartQueryKey(),
                     getGetMyWalletQueryKey(),
                     getGetMyWalletTransactionsQueryKey(),
                     getGetMyListQueryKey(),
@@ -181,11 +182,34 @@ function OrderPaid({ order }: { order: OrderDetailResponse }) {
     const wallet = useGetMyWallet();
     // 지금 잔액이다(이 주문의 결제 직후 잔액이 아님). 재조회 중에는 결제 전 값이 잠깐 보일 수 있어 숨긴다.
     const balance = wallet.isFetching ? undefined : wallet.data?.data?.balance;
+    // 주문 상세에는 할인 금액이 없어(BE:ISS-42) 결제 서버가 실제로 받은 금액으로 쿠폰 할인 · 결제 금액을 보인다.
+    const payment = useGetByOrder(order.id ?? 0, { query: { enabled: order.id !== undefined } });
+    const paidAmount = payment.data?.data?.amount;
+    // 미리보기의 주문 금액(orderAmount)과 주문 상세의 totalAmount는 같은 값(BE OrderPaymentInfo.amount)이다.
+    const discount = paidAmount === undefined ? 0 : (order.totalAmount ?? 0) - paidAmount;
 
     return (
         <StatusCard>
             <StatusHeading icon="task_alt" title="결제가 완료되었습니다" />
             <OrderSummary order={order}>
+                {paidAmount !== undefined && (
+                    <>
+                        {discount > 0 && (
+                            <>
+                                <dt className="text-secondary">쿠폰 할인</dt>
+                                <dd className="text-primary font-semibold">-{formatPrice(discount)}</dd>
+                            </>
+                        )}
+                        <dt className="text-secondary">결제 금액</dt>
+                        <dd className="text-on-surface font-semibold">{formatPrice(paidAmount)}</dd>
+                    </>
+                )}
+                {payment.isError && (
+                    <>
+                        <dt className="text-secondary">결제 금액</dt>
+                        <dd className="text-secondary">예치금 내역에서 확인해 주세요</dd>
+                    </>
+                )}
                 <dt className="text-secondary">결제 수단</dt>
                 <dd className="text-on-surface">팀바이 예치금</dd>
                 <dt className="text-secondary">결제 일시</dt>
@@ -241,6 +265,10 @@ function itemAmount(item: OrderDetailItemResponse): number | null {
 }
 
 function OrderCanceled({ order }: { order: OrderDetailResponse }) {
+    // 쿠폰을 썼으면 환불은 할인된 결제 금액이다. 주문 상세에는 그 금액이 없어(BE:ISS-42) 결제 서버가 실제로 돌려준 금액을 쓴다.
+    // 아직 환불이 반영되지 않았으면(0) 금액 없이 "곧 환불"로 안내한다.
+    const payment = useGetByOrder(order.id ?? 0, { query: { enabled: order.id !== undefined && !!order.paidAt } });
+    const refunded = payment.data?.data?.refundedAmount;
     return (
         <StatusCard>
             <StatusHeading icon="cancel" title="취소된 주문입니다" muted />
@@ -255,7 +283,13 @@ function OrderCanceled({ order }: { order: OrderDetailResponse }) {
             {order.paidAt && (
                 <div className="p-space-sm bg-surface-container-low border border-outline-variant font-body-sm text-body-sm flex items-center gap-space-xs">
                     <Icon name="undo" className="text-[18px] text-primary" />
-                    결제 금액 {formatPrice(order.totalAmount ?? 0)}은 예치금으로 환불되었습니다.
+                    {payment.isPending || payment.isFetching
+                        ? '환불 금액을 확인하고 있습니다.'
+                        : payment.isError
+                          ? '환불 금액을 불러오지 못했습니다. 예치금 내역에서 확인해 주세요.'
+                          : refunded !== undefined && refunded > 0
+                          ? `결제 금액 중 ${formatPrice(refunded)}이 예치금으로 환불되었습니다.`
+                          : '결제 금액은 곧 예치금으로 환불됩니다.'}
                     <Link className="ml-auto underline font-semibold text-primary" href={ROUTES.depositHistory}>
                         예치금 내역
                     </Link>

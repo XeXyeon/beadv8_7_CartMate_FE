@@ -25,6 +25,7 @@ import type {
 
 import type {
   GetSharedGroupOrderByPurchaseParams,
+  RsDataListCouponOption,
   RsDataListSharedGroupOrderSummaryResponse,
   RsDataPaymentResult,
   RsDataSharedGroupOrderDetailResponse,
@@ -63,7 +64,7 @@ export const getPaySharedGroupOrderUrl = (id: number,) => {
 }
 
 /**
- * @summary 공동 주문 분담금 예치금 결제
+ * @summary 공동 주문 분담금 예치금 결제 (플랫폼 쿠폰 선택)
  */
 export const paySharedGroupOrder = async (id: number,
     sharedGroupPaymentRequest?: SharedGroupPaymentRequest, options?: Parameters<typeof http>[1]): Promise<RsDataPaymentResult> => {
@@ -130,7 +131,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PaySharedGroupOrderMutationVariables = {id: number;data?: SharedGroupPaymentRequest}
 
     /**
- * @summary 공동 주문 분담금 예치금 결제
+ * @summary 공동 주문 분담금 예치금 결제 (플랫폼 쿠폰 선택)
  */
 export const usePaySharedGroupOrder = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof paySharedGroupOrder>>, TError,PaySharedGroupOrderMutationVariables, TContext>, request?: SecondParameter<typeof http>}
@@ -142,7 +143,107 @@ export const usePaySharedGroupOrder = <TError = unknown,
       > => {
       return useMutation(getPaySharedGroupOrderMutationOptions(options), queryClient);
     }
-    export const getCancel2Url = (id: number,) => {
+    export const getSharedGroupOrderCouponOptionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/group-orders/shared/${id}/coupons`
+}
+
+/**
+ * @summary 분담금 결제에 쓸 수 있는 내 쿠폰 목록 (대상 금액은 내 분담금, 판매자 쿠폰은 쓸 수 없음)
+ */
+export const sharedGroupOrderCouponOptions = async (id: number, options?: Parameters<typeof http>[1]): Promise<RsDataListCouponOption> => {
+
+  return http<RsDataListCouponOption>(getSharedGroupOrderCouponOptionsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSharedGroupOrderCouponOptionsQueryKey = (id: number,) => {
+    return [
+    `/api/group-orders/shared/${id}/coupons`
+    ] as const;
+    }
+
+
+export const getSharedGroupOrderCouponOptionsQueryOptions = <TData = Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError = unknown>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError, TData>>, request?: SecondParameter<typeof http>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSharedGroupOrderCouponOptionsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>> = ({ signal }) => sharedGroupOrderCouponOptions(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SharedGroupOrderCouponOptionsQueryResult = NonNullable<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>>
+export type SharedGroupOrderCouponOptionsQueryError = unknown
+
+
+export function useSharedGroupOrderCouponOptions<TData = Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError = unknown>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>,
+          TError,
+          Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSharedGroupOrderCouponOptions<TData = Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError = unknown>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>,
+          TError,
+          Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSharedGroupOrderCouponOptions<TData = Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError = unknown>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 분담금 결제에 쓸 수 있는 내 쿠폰 목록 (대상 금액은 내 분담금, 판매자 쿠폰은 쓸 수 없음)
+ */
+
+export function useSharedGroupOrderCouponOptions<TData = Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError = unknown>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof sharedGroupOrderCouponOptions>>, TError, TData>>, request?: SecondParameter<typeof http>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSharedGroupOrderCouponOptionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getCancel2Url = (id: number,) => {
 
 
 

@@ -20,6 +20,28 @@ type Props = {
 // 예상 할인액은 BE가 이 주문으로 계산한 값이고, 실제 결제 금액은 미리보기(memberCouponId 반영)로 다시 받는다.
 export default function CouponSelect({ orderId, selected, onChange, disabled = false }: Props) {
     const query = useGetOrderCouponOptions(orderId, { query: { staleTime: 0 } });
+    return <CouponSelectView query={query} selected={selected} onChange={onChange} disabled={disabled} />;
+}
+
+type OptionsQuery = {
+    data?: { data?: CouponOption[] };
+    isPending: boolean;
+    isError: boolean;
+    error: unknown;
+};
+
+// 쿠폰 목록을 받는 곳(개인 주문 · 공동 주문 분담금)만 다르고 보여 주는 모양은 같다.
+export function CouponSelectView({
+    query,
+    selected,
+    onChange,
+    disabled = false,
+}: {
+    query: OptionsQuery;
+    selected: number | null;
+    onChange: (memberCouponId: number | null) => void;
+    disabled?: boolean;
+}) {
     const options = query.data?.data ?? [];
     const usableCount = options.filter((o) => o.usable).length;
 

@@ -8,4 +8,5 @@ import type { TeamDeliveryAddress } from './teamDeliveryAddress';
 
 export interface SharedGroupPaymentRequest {
   teamDeliveryAddress?: TeamDeliveryAddress;
+  memberCouponId?: number;
 }

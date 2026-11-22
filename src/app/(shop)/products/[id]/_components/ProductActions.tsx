@@ -3,11 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@astryxdesign/core/Button';
 import { Text } from '@astryxdesign/core/Text';
-import { addItem1, changeQuantity, getCart, getGetCartQueryKey, useAddItem1 } from '@/api/generated/cart-controller/cart-controller';
-import type { RsDataCartResponse } from '@/api/generated/model';
+import { getGetCartQueryKey, useAddItem1 } from '@/api/generated/cart-controller/cart-controller';
 import { ApiError, errorMessage } from '@/api/http';
 import Icon from '@/components/ui/Icon';
 import { useCurrentUser, useMySellerId } from '@/lib/auth';
@@ -27,7 +26,7 @@ type Props = {
 
 // 상품 상세의 구매 버튼 영역.
 // - 장바구니 담기: 고른 상품 · 옵션 조합의 재고(inventoryId)를 담는다. 옵션을 다 고르지 않았거나 품절이면 막는다
-// - 바로 구매: BE에 바로 주문 API가 없어 장바구니를 거친다. 고른 재고를 담고 그 항목만 주문서(/checkout?items=)로 보낸다
+// - 바로 구매: 장바구니를 거치지 않는다. 고른 재고 · 수량을 싣고 주문서로 가서, 배송지를 받은 뒤 바로 주문을 만든다
 export default function ProductActions({ postId, sellerId, inventoryId, available, quantity, onSale, total }: Props) {
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -40,17 +39,6 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
         },
     });
 
-    const buyNow = useMutation({
-        mutationFn: (item: BuyNowItem) => putInCartForCheckout(item.inventoryId, item.quantity),
-        // 주문서는 캐시된 장바구니에서 항목을 찾으므로, 방금 받은 장바구니를 캐시에 넣고 넘어간다(다시 조회하다 실패해도 빈 주문서가 뜨지 않게)
-        onSuccess: ({ cartItemId, cart }) => {
-            queryClient.setQueryData(getGetCartQueryKey(), cart);
-            router.push(`${ROUTES.checkout}?items=${cartItemId}`);
-        },
-        // 실패해도 장바구니가 바뀌었을 수 있다(담은 뒤 조회 실패 등)
-        onError: () => queryClient.invalidateQueries({ queryKey: getGetCartQueryKey() }),
-    });
-
     const soldOut = inventoryId !== null && available <= 0;
     // 판매자는 자기 상품을 살 수 없다(BE가 막는다). 눌러 보고 에러를 받기 전에 버튼을 끈다.
     // 판매글의 sellerId는 판매자 번호(seller.id)라서 회원 번호가 아니라 내 판매자 번호와 비교한다
@@ -61,18 +49,14 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
     const isCurrent = sent?.inventoryId === inventoryId && sent?.quantity === quantity;
     // 401은 전역 만료 처리가 로그인 화면으로 보내므로 따로 표시하지 않는다.
     const showError = addToCart.isError && isCurrent && !(addToCart.error instanceof ApiError && addToCart.error.status === 401);
-    const buyNowSent = buyNow.variables;
-    // 로그인 뒤 이어서 실행한 바로 구매는 화면의 선택(처음 값)과 다를 수 있어 선택과 상관없이 실패를 보여 준다
-    const showBuyNowError =
-        buyNow.isError &&
-        (buyNowSent?.resumed || (buyNowSent?.inventoryId === inventoryId && buyNowSent?.quantity === quantity)) &&
-        !(buyNow.error instanceof ApiError && buyNow.error.status === 401);
 
     // 로그인 확인 전(서버 렌더 화면을 이어받는 중 포함)에는 로그인 화면으로 보내지 않는다. 비로그인이면 로그인 뒤 이 상품으로 돌아온다.
-    // 바로 구매였으면 고른 재고 · 수량을 돌아올 주소에 실어, 돌아온 뒤 이어서 주문서로 보낸다(ISS-27)
+    // 바로 구매였으면 고른 재고 · 수량을 돌아올 주소에 싣고, 이 탭의 sessionStorage에도 같은 값을 표시로 남긴다.
+    // 돌아온 뒤 주소와 표시가 맞을 때만 이어서 주문서로 보낸다(ISS-27). 남이 보낸 링크만으로 주문서가 열리지 않게 한다
     const requireLogin = (buyNowIntent?: { inventoryId: number; quantity: number }) => {
         if (userLoading) return true;
         if (!isLoggedIn) {
+            if (buyNowIntent) saveBuyNowMark({ postId, ...buyNowIntent });
             const back = buyNowIntent
                 ? `${ROUTES.product(postId)}?${BUY_NOW_PARAM}=${buyNowIntent.inventoryId}&${BUY_NOW_QTY_PARAM}=${buyNowIntent.quantity}`
                 : ROUTES.product(postId);
@@ -87,31 +71,32 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
         addToCart.mutate({ data: { inventoryId, quantity } });
     };
 
-    // 다시 그려지기 전의 연속 클릭도 막는다. 두 번 담기면 BE가 수량을 합친다
-    const buyNowLock = useRef(false);
+    // 주문서로 이동만 한다. 주문은 주문서에서 배송지를 받은 뒤 만든다
     const startBuyNow = (item: BuyNowItem) => {
-        buyNowLock.current = true;
-        buyNow.mutate(item, { onSettled: () => { buyNowLock.current = false; } });
+        router.push(ROUTES.checkoutBuyNow(postId, item.inventoryId, item.quantity));
     };
     const handleBuyNow = () => {
-        if (inventoryId === null || buyNow.isPending || buyNowLock.current || requireLogin({ inventoryId, quantity })) return;
+        if (inventoryId === null || requireLogin({ inventoryId, quantity })) return;
         startBuyNow({ inventoryId, quantity });
     };
 
-    // 로그인 뒤 바로 구매 의도를 싣고 돌아왔으면 한 번만 이어서 주문서로 보낸다. 주소의 의도는 먼저 지워 새로고침 · 뒤로 가기로 다시 담기지 않게 한다.
+    // 로그인 뒤 바로 구매 의도를 싣고 돌아왔으면 한 번만 이어서 주문서로 보낸다. 주소의 의도와 표시는 실행 여부와 상관없이 먼저 지워
+    // 새로고침 · 뒤로 가기로 주문서가 다시 열리지 않게 한다. 표시가 없거나(남이 보낸 링크) 값이 다르거나 만료됐으면 실행하지 않는다.
     // useSearchParams는 Suspense 경계가 필요해(cacheComponents) 마운트 뒤 window.location에서 읽는다
     const resumed = useRef(false);
     useEffect(() => {
         if (resumed.current || userLoading || !isLoggedIn) return;
         const intent = readBuyNowIntent(window.location.search);
+        const mark = takeBuyNowMark();
         if (!intent) return;
         resumed.current = true;
         router.replace(ROUTES.product(postId), { scroll: false });
-        if (!buyNowLock.current) startBuyNow({ ...intent, resumed: true });
+        const matches = mark !== null && mark.postId === postId && mark.inventoryId === intent.inventoryId && mark.quantity === intent.quantity;
+        if (matches) startBuyNow(intent);
         // startBuyNow는 렌더마다 새로 만들어지지만 한 번만 실행하므로 의존성에서 뺀다
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userLoading, isLoggedIn, postId, router]);
-    const busy = addToCart.isPending || buyNow.isPending;
+    const busy = addToCart.isPending;
 
     return (
         // 모바일(lg 미만)은 화면 하단에 붙는 바(sticky), 데스크톱은 합계 아래 일반 흐름. 버튼 · 메시지는 한 벌만 그린다.
@@ -128,7 +113,7 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
                     size="lg"
                     width="100%"
                     icon={<Icon name="shopping_cart" />}
-                    isDisabled={!canBuy || buyNow.isPending}
+                    isDisabled={!canBuy}
                     isLoading={addToCart.isPending}
                     onClick={handleAddToCart}
                 />
@@ -139,7 +124,6 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
                     width="100%"
                     icon={<Icon name="bolt" />}
                     isDisabled={!canBuy || addToCart.isPending}
-                    isLoading={buyNow.isPending}
                     onClick={handleBuyNow}
                 />
             </div>
@@ -170,11 +154,6 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
                     {errorMessage(addToCart.error, '장바구니에 담지 못했습니다.')}
                 </p>
             )}
-            {showBuyNowError && (
-                <p className="font-body-sm text-body-sm text-error" role="alert">
-                    {errorMessage(buyNow.error, '주문서로 넘어가지 못했습니다.')}
-                </p>
-            )}
             {isMyPost && <Text type="supporting" color="secondary">본인이 판매하는 상품은 구매할 수 없습니다.</Text>}
             {!isMyPost && !onSale && <Text type="supporting" color="secondary">현재 판매하지 않는 상품은 구매할 수 없습니다.</Text>}
             {!isMyPost && onSale && soldOut && <Text type="supporting" className="text-error">품절된 옵션입니다. 다른 옵션을 골라 주세요.</Text>}
@@ -182,8 +161,7 @@ export default function ProductActions({ postId, sellerId, inventoryId, availabl
     );
 }
 
-// resumed: 로그인 뒤 주소의 의도로 이어서 실행한 바로 구매
-type BuyNowItem = { inventoryId: number; quantity: number; resumed?: boolean };
+type BuyNowItem = { inventoryId: number; quantity: number };
 
 // 로그인 뒤 바로 구매를 이어 가기 위한 주소 쿼리. 값이 양의 정수가 아니면 무시한다(재고 · 판매 여부는 BE가 확인한다)
 const BUY_NOW_PARAM = 'buyNow';
@@ -196,24 +174,29 @@ function readBuyNowIntent(search: string): { inventoryId: number; quantity: numb
     return { inventoryId, quantity };
 }
 
-// 바로 구매용으로 고른 재고를 장바구니에 넣고, 그 항목 id와 마지막으로 받은 장바구니를 돌려준다.
-// BE는 같은 재고를 다시 담으면 수량을 합치므로, 이미 담겨 있으면 수량을 지금 고른 수량으로 바꾼다(사용자 결정 2026-11-19).
-// 담기 응답에 항목 id가 없어 장바구니를 다시 조회해 찾는다
-async function putInCartForCheckout(inventoryId: number, quantity: number): Promise<{ cartItemId: number; cart: RsDataCartResponse }> {
-    const findItem = (cart: RsDataCartResponse) => cart.data?.items?.find((item) => item.inventoryId === inventoryId);
-
-    const before = await getCart();
-    const existing = findItem(before);
-    if (existing?.cartItemId != null) {
-        // 주문서는 구매할 수 없는 항목을 빼므로, 그런 항목은 수량을 바꾸지 않고 멈춘다
-        if (existing.purchasable === false) throw new Error('장바구니에 구매할 수 없는 상태로 담겨 있는 상품입니다. 장바구니를 확인해 주세요.');
-        if (existing.quantity === quantity) return { cartItemId: existing.cartItemId, cart: before };
-        await changeQuantity(existing.cartItemId, { quantity });
-        return { cartItemId: existing.cartItemId, cart: await getCart() };
+// 이 탭에서 직접 바로 구매를 눌러 로그인 화면으로 갔다는 표시. 로그인(2차 인증 포함)에 넉넉한 시간만 유효하다.
+// 저장소를 못 쓰면(사생활 보호 모드 등) 표시가 없어 이어서 실행되지 않고 상품 상세에 머문다
+const BUY_NOW_MARK_KEY = 'cartmate.buyNowAfterLogin';
+const BUY_NOW_MARK_TTL_MS = 10 * 60 * 1000;
+type BuyNowMark = { postId: number; inventoryId: number; quantity: number };
+function saveBuyNowMark(mark: BuyNowMark) {
+    try {
+        sessionStorage.setItem(BUY_NOW_MARK_KEY, JSON.stringify({ ...mark, expiresAt: Date.now() + BUY_NOW_MARK_TTL_MS }));
+    } catch {
+        // 저장하지 못하면 로그인 뒤 이어서 실행하지 않는다
     }
-    await addItem1({ inventoryId, quantity });
-    const after = await getCart();
-    const added = findItem(after);
-    if (added?.cartItemId == null) throw new Error('장바구니에 담은 상품을 찾지 못했습니다. 장바구니에서 주문해 주세요.');
-    return { cartItemId: added.cartItemId, cart: after };
+}
+// 표시를 읽고 바로 지운다. 만료됐거나 모양이 다르면 null
+function takeBuyNowMark(): BuyNowMark | null {
+    try {
+        const raw = sessionStorage.getItem(BUY_NOW_MARK_KEY);
+        sessionStorage.removeItem(BUY_NOW_MARK_KEY);
+        if (!raw) return null;
+        const v = JSON.parse(raw) as Partial<BuyNowMark & { expiresAt: number }>;
+        if (typeof v.expiresAt !== 'number' || v.expiresAt < Date.now()) return null;
+        if (typeof v.postId !== 'number' || typeof v.inventoryId !== 'number' || typeof v.quantity !== 'number') return null;
+        return { postId: v.postId, inventoryId: v.inventoryId, quantity: v.quantity };
+    } catch {
+        return null;
+    }
 }
