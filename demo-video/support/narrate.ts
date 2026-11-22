@@ -137,7 +137,12 @@ export class Scene {
         const page = await context.newPage();
         page.on('dialog', (d) => void d.accept());
         const t0 = Date.now();
-        await page.goto('/'); // 첫 화면이 하얗게 비지 않게 홈을 먼저 보여 준다
+        if (this.order === 0) {
+            // 인트로는 홈페이지가 잠깐 비치지 않게 처음부터 카드와 같은 파란 배경으로 시작한다
+            await page.setContent('<body style="margin:0;height:100vh;background:linear-gradient(135deg,#1e3a8a,#2563eb 55%,#60a5fa)">');
+        } else {
+            await page.goto('/'); // 첫 화면이 하얗게 비지 않게 홈을 먼저 보여 준다
+        }
         const beats: Beat[] = [];
         const title = `${this.order === 0 ? '' : `장면 ${this.order} · `}${this.title}`;
         const setUi = async (cap: string) => {
